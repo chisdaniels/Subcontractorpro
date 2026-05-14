@@ -293,7 +293,10 @@ export default function App() {
         options: { data: { role: authForm.role } },
       });
       setAuthBusy(false);
-      if (error) return setAuthError(error.message);
+      if (error) {
+        console.error("signUp error:", error);
+        return setAuthError(error.message || error.error_description || `Signup failed (status ${error.status ?? "?"})`);
+      }
       if (!data.session) {
         const alreadyExists = data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0;
         if (alreadyExists) {
@@ -310,7 +313,10 @@ export default function App() {
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       setAuthBusy(false);
-      if (error) return setAuthError(error.message);
+      if (error) {
+        console.error("signIn error:", error);
+        return setAuthError(error.message || error.error_description || `Sign in failed (status ${error.status ?? "?"})`);
+      }
       setAuthModal(false);
       setAuthForm({ email: "", password: "" });
       notify("Welcome back!");
