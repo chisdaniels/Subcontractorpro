@@ -322,6 +322,13 @@ export default function App() {
     notify("Signed out.");
   }
 
+  async function assignRole(chosenRole) {
+    const { data, error } = await supabase.auth.updateUser({ data: { role: chosenRole } });
+    if (error) { notify("Failed to set role: " + error.message); return; }
+    setUser(data.user);
+    notify(chosenRole === "customer" ? "Welcome — you can now post jobs." : "Welcome — you can now browse jobs.");
+  }
+
   function avatarInitials(name) {
     const parts = name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -531,6 +538,23 @@ export default function App() {
       </header>
 
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px" }}>
+
+        {user && !role && (
+          <div className="card" style={{ padding: 20, marginBottom: 20, borderColor: "#f59e0b" }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Which type of account is this?</div>
+            <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14 }}>
+              Pick one to unlock posting or accepting jobs. You can ignore this if you only want to browse.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }} className="job-grid">
+              <button className="btn btn-gold" onClick={() => assignRole("customer")}>
+                I'm a Customer<br/><span style={{ fontWeight: 400, fontSize: 12 }}>I need a contractor</span>
+              </button>
+              <button className="btn btn-gold" onClick={() => assignRole("contractor")}>
+                I'm a Contractor<br/><span style={{ fontWeight: 400, fontSize: 12 }}>I want to find jobs</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {isContractor && !myContractor && (
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f59e0b" }}>
