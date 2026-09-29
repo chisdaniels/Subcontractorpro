@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase";
 
-const TRADES = ["All Trades", "General Contractor", "Plumber", "Electrician", "Roofer", "Carpenter", "Mason"];
+const TRADES = ["All Trades", "General Contractor", "Plumber", "Electrician", "Roofer", "Carpenter", "Mason", "Flooring", "Cabinets", "Countertops", "Landscaping", "Dirt Work"];
 
 const AVATAR_COLORS = { IR: "#b45309", BS: "#0369a1", VP: "#7c3aed", AR: "#b91c1c", CC: "#047857", TK: "#374151" };
 
@@ -29,20 +29,6 @@ function Avatar({ initials, size = 48 }) {
     >
       {initials}
     </div>
-  );
-}
-
-function ChatHeader({ contractors, contractorId }) {
-  const c = contractors.find(x => x.id === contractorId);
-  if (!c) return null;
-  return (
-    <>
-      <Avatar initials={c.avatar} size={36} />
-      <div>
-        <div style={{ fontWeight: 600 }}>{c.name}</div>
-        <div style={{ fontSize: 12, color: "#64748b" }}>{c.trade}</div>
-      </div>
-    </>
   );
 }
 
@@ -184,14 +170,28 @@ export default function App() {
       const { data, error } = await supabase
         .from("messages")
         .select("*")
-        .eq("user_id", user.id)
+        .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
         .order("created_at");
       if (error) { console.error("messages load failed:", error); return; }
-      const byContractor = {};
+      const threads = {};
       for (const m of data || []) {
-        (byContractor[m.contractor_id] ||= []).push({ from: m.sender, text: m.text });
+        const counterpartyId = m.sender_id === user.id ? m.recipient_id : m.sender_id;
+        const key = `${m.contractor_id}:${counterpartyId}`;
+        if (!threads[key]) {
+          threads[key] = {
+            key,
+            contractor_id: m.contractor_id,
+            counterparty_id: counterpartyId,
+            counterparty_email: null,
+            messages: [],
+          };
+        }
+        if (m.sender_id === counterpartyId && m.sender_email) {
+          threads[key].counterparty_email = m.sender_email;
+        }
+        threads[key].messages.push(m);
       }
-      setMessages(byContractor);
+      setMessages(threads);
     })();
   }, [user]);
 
@@ -226,16 +226,61 @@ export default function App() {
 
   async function sendMessage() {
     if (!msgInput.trim() || !activeChat || !user) return;
-    const text = msgInput;
+    const thread = messages[activeChat];
+    if (!thread) return;
+    const text = msgInput.trim();
     setMsgInput("");
+    const optimistic = {
+      contractor_id: thread.contractor_id,
+      sender_id: user.id,
+      recipient_id: thread.counterparty_id,
+      sender_email: user.email,
+      text,
+      created_at: new Date().toISOString(),
+    };
     setMessages(prev => ({
       ...prev,
-      [activeChat]: [...(prev[activeChat] || []), { from: "me", text }],
+      [activeChat]: { ...prev[activeChat], messages: [...prev[activeChat].messages, optimistic] },
     }));
-    const { error } = await supabase
-      .from("messages")
-      .insert({ contractor_id: activeChat, sender: "me", text, user_id: user.id });
-    if (error) notify("Failed to send. Try again.");
+    const { error } = await supabase.from("messages").insert({
+      contractor_id: thread.contractor_id,
+      sender_id: user.id,
+      recipient_id: thread.counterparty_id,
+      sender_email: user.email,
+      text,
+    });
+    if (error) notify("Failed to send: " + error.message);
+  }
+
+  function openChatWithContractor(contractor) {
+    if (!user) {
+      setAuthMode("signup");
+      setAuthForm(f => ({ ...f, role: "customer" }));
+      setAuthError(null);
+      setAuthModal(true);
+      return;
+    }
+    if (!contractor?.user_id) {
+      notify("This contractor doesn't have messaging set up yet.");
+      return;
+    }
+    if (contractor.user_id === user.id) {
+      notify("You can't message yourself.");
+      return;
+    }
+    const key = `${contractor.id}:${contractor.user_id}`;
+    setMessages(prev => prev[key] ? prev : {
+      ...prev,
+      [key]: {
+        key,
+        contractor_id: contractor.id,
+        counterparty_id: contractor.user_id,
+        counterparty_email: null,
+        messages: [],
+      },
+    });
+    setActiveChat(key);
+    setTab("messages");
   }
 
   function reviewableJobFor(contractorId) {
@@ -506,9 +551,30 @@ export default function App() {
     notify(next ? "You're now open for work." : "Marked as busy.");
   }
 
-  const chatContractorIds = new Set(Object.keys(messages).map(Number));
-  if (activeChat) chatContractorIds.add(activeChat);
-  const chatContractors = contractors.filter(c => chatContractorIds.has(c.id));
+  const threadList = Object.values(messages).sort((a, b) => {
+    const aLast = a.messages[a.messages.length - 1]?.created_at || "";
+    const bLast = b.messages[b.messages.length - 1]?.created_at || "";
+    return bLast.localeCompare(aLast);
+  });
+
+  function threadLabel(t) {
+    const contractor = contractors.find(c => c.id === t.contractor_id);
+    if (isContractor && myContractor && t.contractor_id === myContractor.id) {
+      // Contractor viewing: counterparty is the customer
+      return {
+        name: t.counterparty_email || "Customer",
+        sub: "Customer",
+        avatar: (t.counterparty_email || "?").slice(0, 2).toUpperCase(),
+      };
+    }
+    return {
+      name: contractor?.name || "Contractor",
+      sub: contractor?.trade || "",
+      avatar: contractor?.avatar || "?",
+    };
+  }
+
+  const activeThread = activeChat ? messages[activeChat] : null;
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#0f172a", minHeight: "100vh", color: "#f1f5f9" }}>
@@ -592,12 +658,20 @@ export default function App() {
                 <button className="btn btn-outline btn-sm" onClick={signOut}>Sign Out</button>
               </>
             ) : (
-              <button
-                className="btn btn-gold btn-sm"
-                onClick={() => { setAuthMode("signin"); setAuthError(null); setAuthModal(true); }}
-              >
-                Sign In
-              </button>
+              <>
+                <button
+                  className="btn btn-outline btn-sm"
+                  onClick={() => { setAuthMode("signin"); setAuthError(null); setAuthModal(true); }}
+                >
+                  Sign In
+                </button>
+                <button
+                  className="btn btn-gold btn-sm"
+                  onClick={() => { setAuthMode("signup"); setAuthForm(f => ({ ...f, role: "customer" })); setAuthError(null); setAuthModal(true); }}
+                >
+                  Join Free
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -675,6 +749,24 @@ export default function App() {
           <section aria-labelledby="search-heading">
             <h1 id="search-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>FIND A CONTRACTOR</h1>
             <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Browse verified construction & home service pros</p>
+
+            {!user && (
+              <div className="card" style={{ padding: 18, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", borderColor: "#f59e0b" }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>⚒ Are you a subcontractor?</div>
+                  <div style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
+                    Set up your business profile, upload your license &amp; insurance, and start accepting local jobs. Free to join.
+                  </div>
+                </div>
+                <button
+                  className="btn btn-gold"
+                  onClick={() => { setAuthMode("signup"); setAuthForm(f => ({ ...f, role: "contractor" })); setAuthError(null); setAuthModal(true); }}
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  Get Hired →
+                </button>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
               <label htmlFor="contractor-search" className="sr-only">Search contractors</label>
               <input
@@ -729,7 +821,7 @@ export default function App() {
                   </div>
                   <button
                     className="btn btn-gold btn-sm"
-                    onClick={e => { e.stopPropagation(); setActiveChat(c.id); setTab("messages"); }}
+                    onClick={e => { e.stopPropagation(); openChatWithContractor(c); }}
                     aria-label={`Message ${c.name}`}
                   >
                     Message
@@ -1061,14 +1153,18 @@ export default function App() {
         {tab === "messages" && (
           <section aria-labelledby="messages-heading">
             <h1 id="messages-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 16 }}>MESSAGES</h1>
-            {chatContractors.length === 0 ? (
+            {threadList.length === 0 ? (
               <div className="card" style={{ padding: 40, textAlign: "center" }}>
                 <div style={{ fontSize: 36, marginBottom: 12 }} aria-hidden="true">💬</div>
                 <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 6 }}>No conversations yet</div>
                 <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 16 }}>
-                  Start a chat by clicking <span style={{ color: "#f59e0b", fontWeight: 600 }}>Message</span> on a contractor in the Find tab.
+                  {isContractor
+                    ? "Customers who message you will show up here."
+                    : <>Start a chat by clicking <span style={{ color: "#f59e0b", fontWeight: 600 }}>Message</span> on a contractor in the Find tab.</>}
                 </div>
-                <button className="btn btn-gold btn-sm" onClick={() => setTab("search")}>Browse Contractors</button>
+                {!isContractor && (
+                  <button className="btn btn-gold btn-sm" onClick={() => setTab("search")}>Browse Contractors</button>
+                )}
               </div>
             ) : (
             <div className="messages-layout">
@@ -1078,27 +1174,41 @@ export default function App() {
                 role="list"
                 aria-label="Conversations"
               >
-                {chatContractors.map(c => (
-                  <button
-                    key={c.id}
-                    className="chat-sidebar-btn"
-                    role="listitem"
-                    onClick={() => setActiveChat(c.id)}
-                    style={{ borderColor: activeChat === c.id ? "#f59e0b" : "#334155" }}
-                    aria-pressed={activeChat === c.id}
-                    aria-label={`Chat with ${c.name}`}
-                  >
-                    <Avatar initials={c.avatar} size={36} />
-                    <div style={{ overflow: "hidden" }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#f1f5f9" }}>{c.name}</div>
-                      <div style={{ fontSize: 11, color: "#64748b" }}>{c.trade}</div>
-                    </div>
-                  </button>
-                ))}
+                {threadList.map(t => {
+                  const label = threadLabel(t);
+                  return (
+                    <button
+                      key={t.key}
+                      className="chat-sidebar-btn"
+                      role="listitem"
+                      onClick={() => setActiveChat(t.key)}
+                      style={{ borderColor: activeChat === t.key ? "#f59e0b" : "#334155" }}
+                      aria-pressed={activeChat === t.key}
+                      aria-label={`Chat with ${label.name}`}
+                    >
+                      <Avatar initials={label.avatar} size={36} />
+                      <div style={{ overflow: "hidden" }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#f1f5f9" }}>{label.name}</div>
+                        <div style={{ fontSize: 11, color: "#64748b" }}>{label.sub}</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
               <div className="card messages-chat" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
                 <div style={{ padding: "14px 18px", borderBottom: "1px solid #334155", display: "flex", alignItems: "center", gap: 12 }}>
-                  <ChatHeader contractors={contractors} contractorId={activeChat} />
+                  {activeThread && (() => {
+                    const label = threadLabel(activeThread);
+                    return (
+                      <>
+                        <Avatar initials={label.avatar} size={36} />
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{label.name}</div>
+                          <div style={{ fontSize: 12, color: "#64748b" }}>{label.sub}</div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
                 <div
                   style={{ flex: 1, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 10 }}
@@ -1106,31 +1216,41 @@ export default function App() {
                   aria-live="polite"
                   aria-label="Message history"
                 >
-                  {(messages[activeChat] || []).length === 0 && (
+                  {(!activeThread || activeThread.messages.length === 0) && (
                     <div style={{ color: "#475569", textAlign: "center", marginTop: 60 }}>No messages yet. Say hello!</div>
                   )}
-                  {(messages[activeChat] || []).map((m, i) => (
-                    <div key={i} style={{ display: "flex", justifyContent: m.from === "me" ? "flex-end" : "flex-start" }}>
-                      <div
-                        className={m.from === "me" ? "msg-me" : "msg-them"}
-                        style={{ padding: "10px 14px", maxWidth: "72%", fontSize: 14 }}
-                      >
-                        {m.text}
+                  {(activeThread?.messages || []).map((m, i) => {
+                    const mine = m.sender_id === user.id;
+                    return (
+                      <div key={m.id || i} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
+                        <div
+                          className={mine ? "msg-me" : "msg-them"}
+                          style={{ padding: "10px 14px", maxWidth: "72%", fontSize: 14 }}
+                        >
+                          {m.text}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <div ref={messagesEndRef} />
                 </div>
                 <div style={{ padding: "12px 18px", borderTop: "1px solid #334155", display: "flex", gap: 10 }}>
                   <label htmlFor="msg-input" className="sr-only">Message</label>
                   <input
                     id="msg-input"
-                    placeholder="Type a message..."
+                    placeholder={activeThread ? "Type a message..." : "Pick a conversation to start"}
                     value={msgInput}
                     onChange={e => setMsgInput(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && sendMessage()}
+                    disabled={!activeThread}
                   />
-                  <button className="btn btn-gold" style={{ whiteSpace: "nowrap" }} onClick={sendMessage} aria-label="Send message">
+                  <button
+                    className="btn btn-gold"
+                    style={{ whiteSpace: "nowrap", opacity: activeThread ? 1 : 0.5 }}
+                    onClick={sendMessage}
+                    disabled={!activeThread}
+                    aria-label="Send message"
+                  >
                     Send →
                   </button>
                 </div>
@@ -1323,7 +1443,7 @@ export default function App() {
               <button
                 className="btn btn-gold"
                 style={{ flex: 1 }}
-                onClick={() => { setActiveChat(modal.id); setTab("messages"); setModal(null); }}
+                onClick={() => { openChatWithContractor(modal); setModal(null); }}
               >
                 💬 Send Message
               </button>
