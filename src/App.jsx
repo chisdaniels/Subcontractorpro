@@ -1432,10 +1432,21 @@ function avatarInitials(name) {
                     {j.accepter && (
                       <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 8 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 6 }}>ACCEPTED BY</div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
                           <div>
                             <div style={{ fontWeight: 600 }}>{j.accepter.name}</div>
                             <div style={{ fontSize: 13, color: "#94a3b8" }}>{contractorTrades(j.accepter).join(" · ")} · {j.accepter.location}</div>
+                            {j.accepter.website && (
+                              <div style={{ fontSize: 13, marginTop: 4 }}>
+                                <a
+                                  href={/^https?:\/\//i.test(j.accepter.website) ? j.accepter.website : `https://${j.accepter.website}`}
+                                  target="_blank" rel="noreferrer"
+                                  style={{ color: "#f59e0b", textDecoration: "underline" }}
+                                >
+                                  {j.accepter.website.replace(/^https?:\/\//i, "")}
+                                </a>
+                              </div>
+                            )}
                           </div>
                           {j.status === "completed" || myReviewedJobIds.has(j.id) ? (
                             <span className="badge avail">✓ Completed</span>
@@ -1448,6 +1459,24 @@ function avatarInitials(name) {
                             </button>
                           )}
                         </div>
+                        <details style={{ background: "#1e293b", borderRadius: 8, padding: 10, fontSize: 12 }}>
+                          <summary style={{ cursor: "pointer", color: "#94a3b8", fontWeight: 600, listStyle: "none" }}>
+                            View license &amp; insurance details ▾
+                          </summary>
+                          <div style={{ marginTop: 8, color: "#f1f5f9", lineHeight: 1.7 }}>
+                            <div>
+                              <strong>{j.accepter.license_type || "License"}</strong>
+                              {j.accepter.license_number ? ` · #${j.accepter.license_number}` : ""}
+                              {j.accepter.license_url && <> · <a href={j.accepter.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view license</a></>}
+                            </div>
+                            <div>
+                              <strong>Insurance</strong>
+                              {j.accepter.insurance_carrier ? ` · ${j.accepter.insurance_carrier}` : ""}
+                              {j.accepter.insurance_expires_at ? ` · expires ${j.accepter.insurance_expires_at}` : ""}
+                              {j.accepter.insurance_url && <> · <a href={j.accepter.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view COI</a></>}
+                            </div>
+                          </div>
+                        </details>
                       </div>
                     )}
                     {!j.accepter && (
@@ -2026,28 +2055,16 @@ function avatarInitials(name) {
 
             {isContractorVerified(modal) ? (
               <div style={{ background: "#064e3b", border: "1px solid #047857", borderRadius: 12, padding: 14, marginBottom: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#34d399", marginBottom: 8 }}>
-                  ✓ VERIFIED CREDENTIALS
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#34d399", marginBottom: 6 }}>
+                  ✓ VERIFIED
                 </div>
-                <div style={{ fontSize: 13, color: "#f1f5f9", lineHeight: 1.7 }}>
-                  <div>
-                    <strong>{modal.license_type || "License"}</strong>
-                    {modal.license_number ? ` · #${modal.license_number}` : ""}
-                    {" · "}
-                    <a href={modal.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a>
-                  </div>
-                  <div>
-                    <strong>Insurance</strong>
-                    {modal.insurance_carrier ? ` · ${modal.insurance_carrier}` : ""}
-                    {modal.insurance_expires_at ? ` · expires ${modal.insurance_expires_at}` : ""}
-                    {" · "}
-                    <a href={modal.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a>
-                  </div>
+                <div style={{ fontSize: 13, color: "#d1fae5", lineHeight: 1.5 }}>
+                  Our team confirmed this contractor's license &amp; insurance are on file. Full document details are shared once you hire them for a job.
                 </div>
               </div>
             ) : (
               <div style={{ background: "#3b1515", border: "1px solid #7f1d1d", borderRadius: 12, padding: 14, marginBottom: 20, fontSize: 13, color: "#fca5a5" }}>
-                This contractor has not uploaded license or insurance documents yet.
+                This contractor has not been verified yet.
               </div>
             )}
 

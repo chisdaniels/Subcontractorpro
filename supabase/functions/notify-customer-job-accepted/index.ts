@@ -87,6 +87,13 @@ Deno.serve(async (req) => {
       <div style="color:#475569;font-size:14px;">${escape(contractorTrades)} · ${escape(contractor.location || "")}</div>
       ${contractor.website ? `<div style="margin-top:4px;"><a href="${/^https?:\/\//i.test(contractor.website) ? contractor.website : "https://" + contractor.website}" style="color:#0369a1;">${escape(contractor.website.replace(/^https?:\/\//i, ""))}</a></div>` : ""}
     </div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:0 0 16px;">
+      <div style="font-size:12px;color:#166534;font-weight:700;letter-spacing:1px;margin-bottom:6px;">✓ VERIFIED CREDENTIALS</div>
+      <div style="color:#0f172a;font-size:14px;line-height:1.7;">
+        <div><strong>${escape(contractor.license_type || "License")}</strong>${contractor.license_number ? " · #" + escape(contractor.license_number) : ""}${contractor.license_url ? ` · <a href="${contractor.license_url}" style="color:#166534;">view license</a>` : ""}</div>
+        <div><strong>Insurance</strong>${contractor.insurance_carrier ? " · " + escape(contractor.insurance_carrier) : ""}${contractor.insurance_expires_at ? " · expires " + escape(contractor.insurance_expires_at) : ""}${contractor.insurance_url ? ` · <a href="${contractor.insurance_url}" style="color:#166534;">view COI</a>` : ""}</div>
+      </div>
+    </div>
     <p style="color:#475569;line-height:1.55;">
       They also sent you an intro message in your TradeLinkPro inbox. Log in to reply and coordinate the work.
     </p>
@@ -103,6 +110,10 @@ Deno.serve(async (req) => {
       `Contractor: ${contractor.name}`,
       `${contractorTrades} · ${contractor.location || ""}`,
       contractor.website ? `Website: ${contractor.website}` : "",
+      "",
+      "VERIFIED CREDENTIALS",
+      `${contractor.license_type || "License"}${contractor.license_number ? " #" + contractor.license_number : ""}${contractor.license_url ? "\n  License doc: " + contractor.license_url : ""}`,
+      `Insurance${contractor.insurance_carrier ? " · " + contractor.insurance_carrier : ""}${contractor.insurance_expires_at ? " (expires " + contractor.insurance_expires_at + ")" : ""}${contractor.insurance_url ? "\n  COI: " + contractor.insurance_url : ""}`,
       "",
       "They also sent you an intro message in the app. Log in to reply.",
       appUrl ? `Open TradeLinkPro: ${appUrl}` : "",
