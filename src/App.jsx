@@ -1562,7 +1562,7 @@ function avatarInitials(name) {
                             {j.accepter.website && (
                               <div style={{ fontSize: 13, marginTop: 4 }}>
                                 <a
-                                  href={/^https?:\/\//i.test(j.accepter.website) ? j.accepter.website : `https://${j.accepter.website}`}
+                                  href={`https://${j.accepter.website.replace(/^https?:\/\//i, "")}`}
                                   target="_blank" rel="noreferrer"
                                   style={{ color: "#f59e0b", textDecoration: "underline" }}
                                 >
@@ -1930,7 +1930,7 @@ function avatarInitials(name) {
                         <div><strong>Trades:</strong> {contractorTrades(c).join(", ")}</div>
                         <div><strong>Location:</strong> {c.location}</div>
                         {c.hourly != null && <div><strong>Hourly:</strong> ${c.hourly}/hr</div>}
-                        {c.website && <div><strong>Website:</strong> <a href={/^https?:\/\//i.test(c.website) ? c.website : `https://${c.website}`} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>{c.website.replace(/^https?:\/\//i, "")}</a></div>}
+                        {c.website && <div><strong>Website:</strong> <a href={`https://${c.website.replace(/^https?:\/\//i, "")}`} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>{c.website.replace(/^https?:\/\//i, "")}</a></div>}
                         {c.bio && <div style={{ marginTop: 6 }}><strong>Bio:</strong> {c.bio}</div>}
                       </div>
                       <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, fontSize: 13, lineHeight: 1.75, marginBottom: 12 }}>
@@ -2211,12 +2211,12 @@ function avatarInitials(name) {
             {modal.website && (
               <div style={{ marginBottom: 16 }}>
                 <a
-                  href={/^https?:\/\//i.test(modal.website) ? modal.website : `https://${modal.website}`}
+                  href={`https://${modal.website.replace(/^https?:\/\//i, "")}`}
                   target="_blank"
                   rel="noreferrer"
                   style={{ color: "#f59e0b", textDecoration: "underline", fontSize: 14, fontWeight: 600 }}
                 >
-                  🌐 {modal.website.replace(/^https?:\/\//i, "")}
+                  {modal.website.replace(/^https?:\/\//i, "")}
                 </a>
               </div>
             )}
