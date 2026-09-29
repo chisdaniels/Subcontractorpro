@@ -1629,15 +1629,15 @@ function avatarInitials(name) {
                             </div>
                           )}
                         </div>
-                        <details style={{ background: "#1e293b", borderRadius: 8, padding: 10, fontSize: 12 }}>
-                          <summary style={{ cursor: "pointer", color: "#94a3b8", fontWeight: 600, listStyle: "none" }}>
-                            View license &amp; insurance details ▾
-                          </summary>
-                          <div style={{ marginTop: 8, color: "#f1f5f9", lineHeight: 1.7 }}>
+                        <div style={{ background: "#064e3b", border: "1px solid #047857", borderRadius: 8, padding: 12, fontSize: 13 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#34d399", marginBottom: 8 }}>
+                            ✓ VERIFIED LICENSE &amp; INSURANCE
+                          </div>
+                          <div style={{ color: "#f1f5f9", lineHeight: 1.7 }}>
                             <div>
                               <strong>{j.accepter.license_type || "License"}</strong>
                               {j.accepter.license_number ? ` · #${j.accepter.license_number}` : ""}
-                              {j.accepter.license_url && <> · <a href={j.accepter.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view license</a></>}
+                              {j.accepter.license_url && <> · <a href={j.accepter.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view document</a></>}
                             </div>
                             <div>
                               <strong>Insurance</strong>
@@ -1646,7 +1646,14 @@ function avatarInitials(name) {
                               {j.accepter.insurance_url && <> · <a href={j.accepter.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view COI</a></>}
                             </div>
                           </div>
-                        </details>
+                          <button
+                            className="btn btn-outline btn-sm"
+                            style={{ marginTop: 10, borderColor: "#047857", color: "#a7f3d0" }}
+                            onClick={() => setModal(j.accepter)}
+                          >
+                            View full contractor profile
+                          </button>
+                        </div>
                       </div>
                     )}
                     {!j.accepter && (
