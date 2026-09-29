@@ -132,6 +132,8 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [authState, setAuthState] = useState("loading"); // "loading" | "signed-out" | "signed-in"
+  const [adminChecked, setAdminChecked] = useState(false);
   const [adminList, setAdminList] = useState([]);
   const [adminInvites, setAdminInvites] = useState([]);
   const [adminInviteInput, setAdminInviteInput] = useState("");
@@ -176,18 +178,26 @@ export default function App() {
   const modalRef = useRef(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+    supabase.auth.getSession().then(({ data }) => {
+      const u = data.session?.user ?? null;
+      setUser(u);
+      setAuthState(u ? "signed-in" : "signed-out");
+    });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const u = session?.user ?? null;
+      setUser(u);
+      setAuthState(u ? "signed-in" : "signed-out");
     });
     return () => sub.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (tab === "messages" && !user) setTab("search");
-    if (tab === "admin"    && !isAdmin) setTab("search");
-    // 'jobs' and 'post' are open to any signed-in user now — no auto-redirect.
-  }, [tab, user, isAdmin]);
+    // Only redirect once auth state (and admin state, for #admin) is known.
+    // Otherwise a fresh page load with #admin or #messages in the URL would
+    // bounce back to search before the async auth check completes.
+    if (tab === "messages" && authState === "signed-out") setTab("search");
+    if (tab === "admin" && adminChecked && !isAdmin) setTab("search");
+  }, [tab, authState, isAdmin, adminChecked]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -220,17 +230,18 @@ export default function App() {
   const TRADES = ["All Trades", ...tradeTypes];
 
   useEffect(() => {
-    if (!user) { setIsAdmin(false); return; }
+    if (!user) { setIsAdmin(false); setAdminChecked(authState !== "loading"); return; }
     (async () => {
       const { data, error } = await supabase
         .from("admins")
         .select("user_id")
         .eq("user_id", user.id)
         .maybeSingle();
-      if (error) { console.error("admin check failed:", error); return; }
+      if (error) console.error("admin check failed:", error);
       setIsAdmin(!!data);
+      setAdminChecked(true);
     })();
-  }, [user]);
+  }, [user, authState]);
 
   useEffect(() => {
     if (!isAdmin) { setAdminList([]); setAdminInvites([]); setJobReleases([]); setSupportTickets([]); return; }
@@ -1562,7 +1573,7 @@ function avatarInitials(name) {
                             {j.accepter.website && (
                               <div style={{ fontSize: 13, marginTop: 4 }}>
                                 <a
-                                  href={`https://${j.accepter.website.replace(/^https?:\/\//i, "")}`}
+                                  href={/^https?:\/\//i.test(j.accepter.website) ? j.accepter.website : `https://${j.accepter.website}`}
                                   target="_blank" rel="noreferrer"
                                   style={{ color: "#f59e0b", textDecoration: "underline" }}
                                 >
@@ -1930,7 +1941,7 @@ function avatarInitials(name) {
                         <div><strong>Trades:</strong> {contractorTrades(c).join(", ")}</div>
                         <div><strong>Location:</strong> {c.location}</div>
                         {c.hourly != null && <div><strong>Hourly:</strong> ${c.hourly}/hr</div>}
-                        {c.website && <div><strong>Website:</strong> <a href={`https://${c.website.replace(/^https?:\/\//i, "")}`} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>{c.website.replace(/^https?:\/\//i, "")}</a></div>}
+                        {c.website && <div><strong>Website:</strong> <a href={/^https?:\/\//i.test(c.website) ? c.website : `https://${c.website}`} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>{c.website.replace(/^https?:\/\//i, "")}</a></div>}
                         {c.bio && <div style={{ marginTop: 6 }}><strong>Bio:</strong> {c.bio}</div>}
                       </div>
                       <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, fontSize: 13, lineHeight: 1.75, marginBottom: 12 }}>
@@ -2211,7 +2222,7 @@ function avatarInitials(name) {
             {modal.website && (
               <div style={{ marginBottom: 16 }}>
                 <a
-                  href={`https://${modal.website.replace(/^https?:\/\//i, "")}`}
+                  href={/^https?:\/\//i.test(modal.website) ? modal.website : `https://${modal.website}`}
                   target="_blank"
                   rel="noreferrer"
                   style={{ color: "#f59e0b", textDecoration: "underline", fontSize: 14, fontWeight: 600 }}

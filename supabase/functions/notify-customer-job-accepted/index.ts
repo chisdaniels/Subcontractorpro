@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       <div style="font-size:12px;color:#64748b;font-weight:700;letter-spacing:1px;margin-bottom:6px;">CONTRACTOR</div>
       <div style="font-weight:600;color:#0f172a;">${escape(contractor.name)}</div>
       <div style="color:#475569;font-size:14px;">${escape(contractorTrades)} · ${escape(contractor.location || "")}</div>
-      ${contractor.website ? `<div style="margin-top:4px;"><a href="https://${contractor.website.replace(/^https?:\/\//i, "")}" style="color:#0369a1;">${escape(contractor.website.replace(/^https?:\/\//i, ""))}</a></div>` : ""}
+      ${contractor.website ? `<div style="margin-top:4px;"><a href="${/^https?:\/\//i.test(contractor.website) ? contractor.website : "https://" + contractor.website}" style="color:#0369a1;">${escape(contractor.website.replace(/^https?:\/\//i, ""))}</a></div>` : ""}
     </div>
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:0 0 16px;">
       <div style="font-size:12px;color:#166534;font-weight:700;letter-spacing:1px;margin-bottom:6px;">✓ VERIFIED CREDENTIALS</div>
