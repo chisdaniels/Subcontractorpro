@@ -67,38 +67,82 @@ Deno.serve(async (req) => {
     const subject = `${contractor.name} accepted your job "${job.title}"`;
     const contractorTrades = Array.isArray(contractor.trades) && contractor.trades.length > 0
       ? contractor.trades.join(", ") : (contractor.trade || "");
+    const websiteHref = contractor.website
+      ? (/^https?:\/\//i.test(contractor.website) ? contractor.website : "https://" + contractor.website)
+      : "";
 
+    // Table-based layout for maximum email-client compatibility (Yahoo,
+    // Gmail, Outlook). Divs and modern CSS often get stripped or reflowed.
     const html = `
 <!doctype html>
-<html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f8fafc;padding:24px;">
-  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;padding:24px;">
-    <h2 style="color:#0f172a;margin:0 0 8px;">Great news${job.homeowner_name ? `, ${escape(job.homeowner_name)}` : ""}!</h2>
-    <p style="color:#475569;line-height:1.55;">
-      <strong>${escape(contractor.name)}</strong> just accepted your job:
-    </p>
-    <div style="background:#f1f5f9;border-radius:10px;padding:14px;margin:0 0 16px;">
-      <div style="font-weight:700;color:#0f172a;">${escape(job.title)}</div>
-      <div style="color:#64748b;font-size:14px;margin-top:4px;">${escape(job.trade)} · ${escape(job.location)}</div>
-      ${job.budget != null ? `<div style="color:#f59e0b;font-weight:700;margin-top:4px;">$${Number(job.budget).toLocaleString()}</div>` : ""}
-    </div>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin:0 0 16px;">
-      <div style="font-size:12px;color:#64748b;font-weight:700;letter-spacing:1px;margin-bottom:6px;">CONTRACTOR</div>
-      <div style="font-weight:600;color:#0f172a;">${escape(contractor.name)}</div>
-      <div style="color:#475569;font-size:14px;">${escape(contractorTrades)} · ${escape(contractor.location || "")}</div>
-      ${contractor.website ? `<div style="margin-top:4px;"><a href="${/^https?:\/\//i.test(contractor.website) ? contractor.website : "https://" + contractor.website}" style="color:#0369a1;">${escape(contractor.website.replace(/^https?:\/\//i, ""))}</a></div>` : ""}
-    </div>
-    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:0 0 16px;">
-      <div style="font-size:12px;color:#166534;font-weight:700;letter-spacing:1px;margin-bottom:6px;">✓ VERIFIED CREDENTIALS</div>
-      <div style="color:#0f172a;font-size:14px;line-height:1.7;">
-        <div><strong>${escape(contractor.license_type || "License")}</strong>${contractor.license_number ? " · #" + escape(contractor.license_number) : ""}${contractor.license_url ? ` · <a href="${contractor.license_url}" style="color:#166534;">view license</a>` : ""}</div>
-        <div><strong>Insurance</strong>${contractor.insurance_carrier ? " · " + escape(contractor.insurance_carrier) : ""}${contractor.insurance_expires_at ? " · expires " + escape(contractor.insurance_expires_at) : ""}${contractor.insurance_url ? ` · <a href="${contractor.insurance_url}" style="color:#166534;">view COI</a>` : ""}</div>
-      </div>
-    </div>
-    <p style="color:#475569;line-height:1.55;">
-      They also sent you an intro message in your TradeLinkPro inbox. Log in to reply and coordinate the work.
-    </p>
-    ${appUrl ? `<p><a href="${appUrl}" style="display:inline-block;background:#f59e0b;color:#0f172a;padding:12px 24px;text-decoration:none;border-radius:10px;font-weight:700;">Open Messages →</a></p>` : ""}
-  </div>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6fa;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f6fa;padding:24px 12px;">
+  <tr><td align="center">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#ffffff;border-radius:12px;">
+      <tr><td style="padding:24px 24px 12px;">
+        <h1 style="color:#0f172a;font-size:22px;margin:0 0 8px;">Great news${job.homeowner_name ? `, ${escape(job.homeowner_name)}` : ""}!</h1>
+        <p style="color:#475569;font-size:15px;line-height:1.55;margin:0 0 16px;">
+          <strong>${escape(contractor.name)}</strong> just accepted your job.
+        </p>
+      </td></tr>
+
+      <!-- CREDENTIALS FIRST — most important for trust -->
+      <tr><td style="padding:0 24px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ecfdf5;border:2px solid #10b981;border-radius:10px;">
+          <tr><td style="padding:16px;">
+            <div style="color:#065f46;font-weight:700;font-size:13px;letter-spacing:1px;margin-bottom:10px;">VERIFIED LICENSE &amp; INSURANCE</div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr><td style="padding:4px 0;color:#0f172a;font-size:14px;">
+                <strong>${escape(contractor.license_type || "License")}</strong>${contractor.license_number ? " &middot; #" + escape(contractor.license_number) : ""}
+              </td></tr>
+              ${contractor.license_url ? `<tr><td style="padding:0 0 8px;"><a href="${contractor.license_url}" style="color:#047857;font-size:14px;font-weight:600;">View license document</a></td></tr>` : ""}
+              <tr><td style="padding:4px 0;color:#0f172a;font-size:14px;">
+                <strong>Insurance</strong>${contractor.insurance_carrier ? " &middot; " + escape(contractor.insurance_carrier) : ""}${contractor.insurance_expires_at ? " &middot; expires " + escape(contractor.insurance_expires_at) : ""}
+              </td></tr>
+              ${contractor.insurance_url ? `<tr><td style="padding:0;"><a href="${contractor.insurance_url}" style="color:#047857;font-size:14px;font-weight:600;">View certificate of insurance</a></td></tr>` : ""}
+            </table>
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <!-- JOB INFO -->
+      <tr><td style="padding:0 24px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;border-radius:10px;">
+          <tr><td style="padding:16px;">
+            <div style="color:#64748b;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:6px;">JOB</div>
+            <div style="color:#0f172a;font-weight:700;font-size:16px;">${escape(job.title)}</div>
+            <div style="color:#64748b;font-size:14px;margin-top:4px;">${escape(job.trade)} &middot; ${escape(job.location)}</div>
+            ${job.budget != null ? `<div style="color:#b45309;font-weight:700;margin-top:4px;">Budget: $${Number(job.budget).toLocaleString()}</div>` : ""}
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <!-- CONTRACTOR INFO -->
+      <tr><td style="padding:0 24px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;border-radius:10px;">
+          <tr><td style="padding:16px;">
+            <div style="color:#64748b;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:6px;">CONTRACTOR</div>
+            <div style="color:#0f172a;font-weight:600;font-size:15px;">${escape(contractor.name)}</div>
+            <div style="color:#475569;font-size:14px;">${escape(contractorTrades)}${contractor.location ? " &middot; " + escape(contractor.location) : ""}</div>
+            ${websiteHref ? `<div style="margin-top:6px;"><a href="${websiteHref}" style="color:#0369a1;font-size:14px;">${escape(contractor.website.replace(/^https?:\/\//i, ""))}</a></div>` : ""}
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <tr><td style="padding:0 24px 24px;">
+        <p style="color:#475569;font-size:14px;line-height:1.55;margin:0 0 16px;">
+          They also sent you an intro message in your TradeLinkPro inbox. Log in to reply and coordinate the work.
+        </p>
+        ${appUrl ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#f59e0b;border-radius:10px;"><a href="${appUrl}" style="display:inline-block;padding:12px 24px;color:#0f172a;text-decoration:none;font-weight:700;">Open Messages</a></td></tr></table>` : ""}
+      </td></tr>
+
+      <tr><td style="padding:0 24px 24px;color:#94a3b8;font-size:12px;">
+        You're receiving this because a contractor accepted a job you posted on TradeLinkPro.
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
 </body></html>`.trim();
 
     const text = [
