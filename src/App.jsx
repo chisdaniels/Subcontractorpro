@@ -69,7 +69,7 @@ export default function App() {
   const [myContractor, setMyContractor] = useState(null);
   const [profileModal, setProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({
-    name: "", trade: "General Contractor", location: "", hourly: "", bio: "", tags: "",
+    name: "", trades: ["General Contractor"], location: "", hourly: "", bio: "", tags: "",
     license_type: "", license_number: "", insurance_carrier: "", insurance_expires_at: "",
     license_file: null, insurance_file: null,
     license_url: "", insurance_url: "",
@@ -268,10 +268,18 @@ export default function App() {
     return () => { document.body.style.overflow = ""; };
   }, [modal]);
 
+  function contractorTrades(c) {
+    return Array.isArray(c?.trades) && c.trades.length ? c.trades : c?.trade ? [c.trade] : [];
+  }
+
   const filtered = contractors.filter(c => {
-    const matchTrade = trade === "All Trades" || c.trade === trade;
+    const trades = contractorTrades(c);
+    const matchTrade = trade === "All Trades" || trades.includes(trade);
     const q = search.toLowerCase();
-    const matchSearch = c.name.toLowerCase().includes(q) || c.trade.toLowerCase().includes(q) || c.location.toLowerCase().includes(q);
+    const matchSearch =
+      c.name.toLowerCase().includes(q) ||
+      trades.some(t => t.toLowerCase().includes(q)) ||
+      (c.location || "").toLowerCase().includes(q);
     return matchTrade && matchSearch;
   });
 
@@ -640,6 +648,9 @@ export default function App() {
       if (!profileForm.license_type.trim())      throw new Error("License type is required.");
       if (!profileForm.insurance_carrier.trim()) throw new Error("Insurance carrier is required.");
       if (!profileForm.insurance_expires_at)     throw new Error("Insurance expiration date is required.");
+      if (!Array.isArray(profileForm.trades) || profileForm.trades.length === 0) {
+        throw new Error("Pick at least one trade.");
+      }
 
       let license_url   = profileForm.license_url;
       let insurance_url = profileForm.insurance_url;
@@ -649,7 +660,8 @@ export default function App() {
       const row = {
         user_id: user.id,
         name: profileForm.name.trim(),
-        trade: profileForm.trade,
+        trades: profileForm.trades,
+        trade: profileForm.trades[0],
         location: profileForm.location.trim(),
         hourly: profileForm.hourly ? Number(profileForm.hourly) : null,
         bio: profileForm.bio.trim() || null,
@@ -686,9 +698,14 @@ export default function App() {
   }
 
   function openProfileModal() {
+    const existingTrades = Array.isArray(myContractor?.trades) && myContractor.trades.length > 0
+      ? myContractor.trades
+      : myContractor?.trade
+        ? [myContractor.trade]
+        : ["General Contractor"];
     setProfileForm({
       name: myContractor?.name ?? "",
-      trade: myContractor?.trade ?? "General Contractor",
+      trades: existingTrades,
       location: myContractor?.location ?? "",
       hourly: myContractor?.hourly?.toString() ?? "",
       bio: myContractor?.bio ?? "",
@@ -1027,7 +1044,7 @@ export default function App() {
                   onClick={() => setModal(c)}
                   onKeyDown={e => (e.key === "Enter" || e.key === " ") && setModal(c)}
                   tabIndex={0}
-                  aria-label={`View profile for ${c.name}, ${c.trade} in ${c.location}`}
+                  aria-label={`View profile for ${c.name}, ${contractorTrades(c).join(" and ")} in ${c.location}`}
                 >
                   <Avatar initials={c.avatar} size={52} />
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1040,7 +1057,7 @@ export default function App() {
                         <span className="badge avail" title="License & insurance on file">✓ Verified</span>
                       )}
                     </div>
-                    <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 6 }}>{c.trade} · {c.location}</div>
+                    <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 6 }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
                       <Stars rating={c.rating} />
                       <span style={{ fontSize: 13, color: "#94a3b8" }}>{c.rating} ({c.reviews_count} reviews)</span>
@@ -1233,7 +1250,7 @@ export default function App() {
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                           <div>
                             <div style={{ fontWeight: 600 }}>{j.accepter.name}</div>
-                            <div style={{ fontSize: 13, color: "#94a3b8" }}>{j.accepter.trade} · {j.accepter.location}</div>
+                            <div style={{ fontSize: 13, color: "#94a3b8" }}>{contractorTrades(j.accepter).join(" · ")} · {j.accepter.location}</div>
                           </div>
                           {j.status === "completed" || myReviewedJobIds.has(j.id) ? (
                             <span className="badge avail">✓ Completed</span>
@@ -1515,7 +1532,7 @@ export default function App() {
                       <Avatar initials={c.avatar} size={44} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700 }}>{c.name}</div>
-                        <div style={{ fontSize: 13, color: "#94a3b8" }}>{c.trade} · {c.location}</div>
+                        <div style={{ fontSize: 13, color: "#94a3b8" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
                       </div>
                     </div>
                     <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 13, lineHeight: 1.7 }}>
@@ -1551,7 +1568,7 @@ export default function App() {
                 <div key={c.id} className="card" style={{ padding: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                   <div>
                     <span style={{ fontWeight: 600 }}>{c.name}</span>
-                    <span style={{ color: "#64748b", fontSize: 13, marginLeft: 8 }}>{c.trade}</span>
+                    <span style={{ color: "#64748b", fontSize: 13, marginLeft: 8 }}>{contractorTrades(c).join(" · ")}</span>
                   </div>
                   <button className="btn btn-outline btn-sm" onClick={() => adminSetVerified(c, false)} disabled={adminBusy}>
                     Un-verify
@@ -1605,7 +1622,7 @@ export default function App() {
                     <Avatar initials={c.avatar} size={44} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700 }}>{c.name}</div>
-                      <div style={{ fontSize: 13, color: "#64748b" }}>{c.trade}</div>
+                      <div style={{ fontSize: 13, color: "#64748b" }}>{contractorTrades(c).join(" · ")}</div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <Stars rating={c.rating} />
@@ -1710,7 +1727,7 @@ export default function App() {
               <Avatar initials={modal.avatar} size={60} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div id="modal-contractor-name" style={{ fontWeight: 700, fontSize: 20 }}>{modal.name}</div>
-                <div style={{ color: "#64748b", fontSize: 14 }}>{modal.trade} · {modal.location}</div>
+                <div style={{ color: "#64748b", fontSize: 14 }}>{contractorTrades(modal).join(" · ")} · {modal.location}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
                   <Stars rating={modal.rating} />
                   <span style={{ color: "#94a3b8", fontSize: 13 }}>{modal.rating} ({modal.reviews_count} reviews)</span>
@@ -1831,24 +1848,48 @@ export default function App() {
                   onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
                 />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="job-grid">
-                <div>
-                  <label htmlFor="pf-trade" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Trade *</label>
-                  <select id="pf-trade" value={profileForm.trade} onChange={e => setProfileForm(f => ({ ...f, trade: e.target.value }))}>
-                    {TRADES.filter(t => t !== "All Trades").map(t => <option key={t}>{t}</option>)}
-                  </select>
+              <div>
+                <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>Trades * <span style={{ color: "#64748b" }}>(pick one or more)</span></div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+                  {TRADES.filter(t => t !== "All Trades").map(t => {
+                    const checked = profileForm.trades.includes(t);
+                    return (
+                      <label
+                        key={t}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "8px 10px", borderRadius: 8,
+                          background: checked ? "rgba(245,158,11,0.12)" : "#0f172a",
+                          border: `1px solid ${checked ? "#f59e0b" : "#334155"}`,
+                          cursor: "pointer", fontSize: 13,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={e => setProfileForm(f => {
+                            const next = new Set(f.trades);
+                            if (e.target.checked) next.add(t); else next.delete(t);
+                            return { ...f, trades: Array.from(next) };
+                          })}
+                          style={{ width: "auto", accentColor: "#f59e0b" }}
+                        />
+                        {t}
+                      </label>
+                    );
+                  })}
                 </div>
-                <div>
-                  <label htmlFor="pf-hourly" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Hourly Rate ($)</label>
-                  <input
-                    id="pf-hourly"
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 80"
-                    value={profileForm.hourly}
-                    onChange={e => setProfileForm(f => ({ ...f, hourly: e.target.value }))}
-                  />
-                </div>
+              </div>
+              <div>
+                <label htmlFor="pf-hourly" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Hourly Rate ($)</label>
+                <input
+                  id="pf-hourly"
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 80"
+                  value={profileForm.hourly}
+                  onChange={e => setProfileForm(f => ({ ...f, hourly: e.target.value }))}
+                />
               </div>
               <div>
                 <label htmlFor="pf-location" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Location *</label>
