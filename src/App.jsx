@@ -99,7 +99,11 @@ function Avatar({ initials, size = 48 }) {
 }
 
 export default function App() {
-  const [tab, setTab] = useState("search");
+  const [tab, setTab] = useState(() => {
+    if (typeof window === "undefined") return "search";
+    const h = window.location.hash.replace(/^#/, "");
+    return ["search", "post", "jobs", "messages", "reviews", "admin"].includes(h) ? h : "search";
+  });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [trade, setTrade] = useState("All Trades");
   const [search, setSearch] = useState("");
@@ -184,6 +188,26 @@ export default function App() {
     if (tab === "admin"    && !isAdmin) setTab("search");
     // 'jobs' and 'post' are open to any signed-in user now — no auto-redirect.
   }, [tab, user, isAdmin]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const target = `#${tab}`;
+    if (window.location.hash !== target) {
+      window.history.replaceState(null, "", target);
+    }
+  }, [tab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onHash = () => {
+      const h = window.location.hash.replace(/^#/, "");
+      if (["search", "post", "jobs", "messages", "reviews", "admin"].includes(h)) {
+        setTab(h);
+      }
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   useEffect(() => {
     (async () => {
