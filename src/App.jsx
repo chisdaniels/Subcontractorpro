@@ -671,6 +671,12 @@ export default function App() {
       setProfileModal(false);
       const { data: cs } = await supabase.from("contractors").select("*").order("id");
       setContractors(cs || []);
+      // Fire-and-forget notification to admins so they know to verify.
+      if (!data.verified) {
+        supabase.functions
+          .invoke("notify-admin-contractor-pending")
+          .catch(err => console.error("notify admin failed:", err));
+      }
       notify(myContractor ? "Profile updated!" : "Profile created!");
     } catch (err) {
       setProfileError(err.message);
