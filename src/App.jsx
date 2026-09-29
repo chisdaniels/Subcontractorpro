@@ -1011,6 +1011,13 @@ function avatarInitials(name) {
                       <button
                         className="user-menu-item"
                         role="menuitem"
+                        onClick={() => { setTab("messages"); setUserMenuOpen(false); }}
+                      >
+                        💬 Messages{Object.keys(messages).length ? ` (${Object.keys(messages).length})` : ""}
+                      </button>
+                      <button
+                        className="user-menu-item"
+                        role="menuitem"
                         onClick={() => { setCustomerProfileModal(true); setUserMenuOpen(false); }}
                       >
                         👤 My Profile
