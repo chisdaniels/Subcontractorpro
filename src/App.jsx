@@ -542,9 +542,14 @@ export default function App() {
     if (error) { notify("Verify failed: " + error.message); return; }
     setContractors(prev => prev.map(c => c.id === contractor.id ? { ...c, ...payload } : c));
     // Email the contractor about the status change.
-    supabase.functions
-      .invoke("notify-contractor-verified", { body: { contractorId: contractor.id } })
-      .catch(err => console.error("notify contractor failed:", err));
+    console.log("[TradeLinkPro] Invoking notify-contractor-verified for", contractor.id);
+    try {
+      const r = await supabase.functions.invoke("notify-contractor-verified", { body: { contractorId: contractor.id } });
+      console.log("[TradeLinkPro] verify-notify result:", r);
+      if (r.error) notify("Verified in DB, but email failed: " + (r.error.message || r.error));
+    } catch (err) {
+      console.error("[TradeLinkPro] verify-notify threw:", err);
+    }
     notify(verified ? `Verified ${contractor.name}.` : `Un-verified ${contractor.name}.`);
   }
 
@@ -719,11 +724,19 @@ function avatarInitials(name) {
       setProfileModal(false);
       const { data: cs } = await supabase.from("contractors").select("*").order("id");
       setContractors(cs || []);
-      // Fire-and-forget notification to admins so they know to verify.
+      // Notify admins and the contractor. Awaited so a failure surfaces
+      // to the user instead of silently disappearing.
       if (!data.verified) {
-        supabase.functions
-          .invoke("notify-admin-contractor-pending")
-          .catch(err => console.error("notify admin failed:", err));
+        console.log("[TradeLinkPro] Invoking notify-admin-contractor-pending…");
+        try {
+          const result = await supabase.functions.invoke("notify-admin-contractor-pending");
+          console.log("[TradeLinkPro] notify result:", result);
+          if (result.error) notify("Docs saved, but notification failed: " + (result.error.message || result.error));
+          else if (result.data?.skipped) notify("Docs saved. Notification skipped: " + result.data.skipped);
+        } catch (err) {
+          console.error("[TradeLinkPro] notify admin threw:", err);
+          notify("Docs saved, but notification threw: " + (err.message || err));
+        }
       }
       notify(myContractor ? "Profile updated!" : "Profile created!");
     } catch (err) {
@@ -870,8 +883,11 @@ function avatarInitials(name) {
         .msg-them { background: #1e293b; border: 1px solid #334155; border-radius: 18px 18px 18px 4px; }
         .notification { position: fixed; top: 20px; right: 20px; background: #f59e0b; color: #0f172a; padding: 12px 22px; border-radius: 12px; font-weight: 700; z-index: 999; animation: slidein 0.3s; }
         @keyframes slidein { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
-        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(2px); }
-        .modal { background: #1e293b; border-radius: 20px; border: 1px solid #334155; width: 100%; max-width: 480px; padding: 28px; max-height: 90vh; overflow-y: auto; }
+        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(2px); overflow-y: auto; }
+        .modal { background: #1e293b; border-radius: 20px; border: 1px solid #334155; width: 100%; max-width: 480px; padding: 28px; max-height: 90vh; overflow-y: auto; overflow-x: hidden; }
+        .modal input, .modal textarea, .modal select { max-width: 100%; min-width: 0; }
+        .modal input[type="date"] { min-width: 0; }
+        .job-grid > * { min-width: 0; }
         .contractor-card:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; border-radius: 16px; }
         .star-btn { background: none; border: none; cursor: pointer; padding: 2px; font-size: 24px; line-height: 1; transition: transform 0.1s; }
         .star-btn:hover { transform: scale(1.15); }
@@ -884,7 +900,8 @@ function avatarInitials(name) {
           .messages-chat { height: 380px; }
           .messages-sidebar-list { flex-direction: row !important; overflow-x: auto; }
           .job-grid { grid-template-columns: 1fr !important; }
-          .modal { padding: 20px; }
+          .modal { padding: 20px !important; border-radius: 16px !important; }
+          .modal-bg { padding: 12px !important; }
         }
       `}</style>
 
