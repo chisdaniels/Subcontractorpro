@@ -108,6 +108,11 @@ export default function App() {
   const [reviews, setReviews] = useState({});
   const [msgInput, setMsgInput] = useState("");
   const [activeChat, setActiveChat] = useState(null);
+  const [lastSeenThreads, setLastSeenThreads] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("tlp_thread_seen") || "{}");
+    } catch { return {}; }
+  });
   const [reviewInput, setReviewInput] = useState({ stars: 5, text: "" });
   const [reviewTarget, setReviewTarget] = useState(null); // { contractorId, jobId } | null
   const [myReviewedJobIds, setMyReviewedJobIds] = useState(new Set());
@@ -916,6 +921,26 @@ function avatarInitials(name) {
 
   const activeThread = activeChat ? messages[activeChat] : null;
 
+  function unreadCount(t) {
+    if (!user) return 0;
+    const seenAt = lastSeenThreads[t.key] || 0;
+    return t.messages.filter(m => m.sender_id !== user.id && new Date(m.created_at).getTime() > seenAt).length;
+  }
+  const totalUnread = threadList.reduce((sum, t) => sum + unreadCount(t), 0);
+
+  function markThreadSeen(threadKey) {
+    setLastSeenThreads(prev => {
+      const next = { ...prev, [threadKey]: Date.now() };
+      try { localStorage.setItem("tlp_thread_seen", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    if (activeChat) markThreadSeen(activeChat);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChat, messages]);
+
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#0f172a", minHeight: "100vh", color: "#f1f5f9" }}>
       <style>{`
@@ -963,8 +988,9 @@ function avatarInitials(name) {
         .chat-sidebar-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
         @media (max-width: 640px) {
           .messages-layout { grid-template-columns: 1fr; height: auto; }
-          .messages-chat { height: 380px; }
-          .messages-sidebar-list { flex-direction: row !important; overflow-x: auto; }
+          .messages-chat { height: 480px; }
+          .messages-layout.has-active .messages-sidebar-list { display: none !important; }
+          .messages-layout:not(.has-active) .messages-chat { display: none !important; }
           .job-grid { grid-template-columns: 1fr !important; }
           .modal { padding: 20px !important; border-radius: 16px !important; }
           .modal-bg { padding: 12px !important; }
@@ -1013,7 +1039,13 @@ function avatarInitials(name) {
                         role="menuitem"
                         onClick={() => { setTab("messages"); setUserMenuOpen(false); }}
                       >
-                        💬 Messages{Object.keys(messages).length ? ` (${Object.keys(messages).length})` : ""}
+                        💬 Messages
+                        {totalUnread > 0 && (
+                          <span style={{
+                            background: "#dc2626", color: "#fff", marginLeft: 8,
+                            fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                          }}>{totalUnread}</span>
+                        )}
                       </button>
                       <button
                         className="user-menu-item"
@@ -1534,7 +1566,7 @@ function avatarInitials(name) {
                 )}
               </div>
             ) : (
-            <div className="messages-layout">
+            <div className={`messages-layout ${activeChat ? "has-active" : ""}`}>
               <div
                 className="messages-sidebar-list"
                 style={{ display: "flex", flexDirection: "column", gap: 8 }}
@@ -1543,21 +1575,28 @@ function avatarInitials(name) {
               >
                 {threadList.map(t => {
                   const label = threadLabel(t);
+                  const unread = unreadCount(t);
                   return (
                     <button
                       key={t.key}
                       className="chat-sidebar-btn"
                       role="listitem"
                       onClick={() => setActiveChat(t.key)}
-                      style={{ borderColor: activeChat === t.key ? "#f59e0b" : "#334155" }}
+                      style={{ borderColor: activeChat === t.key ? "#f59e0b" : unread > 0 ? "#f59e0b" : "#334155" }}
                       aria-pressed={activeChat === t.key}
-                      aria-label={`Chat with ${label.name}`}
+                      aria-label={`Chat with ${label.name}${unread ? `, ${unread} unread` : ""}`}
                     >
                       <Avatar initials={label.avatar} size={36} />
-                      <div style={{ overflow: "hidden" }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#f1f5f9" }}>{label.name}</div>
+                      <div style={{ overflow: "hidden", flex: 1 }}>
+                        <div style={{ fontWeight: unread > 0 ? 700 : 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#f1f5f9" }}>{label.name}</div>
                         <div style={{ fontSize: 11, color: "#64748b" }}>{label.sub}</div>
                       </div>
+                      {unread > 0 && (
+                        <span style={{
+                          background: "#dc2626", color: "#fff",
+                          fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, flexShrink: 0,
+                        }}>{unread}</span>
+                      )}
                     </button>
                   );
                 })}
@@ -1568,14 +1607,24 @@ function avatarInitials(name) {
                     const label = threadLabel(activeThread);
                     return (
                       <>
+                        <button
+                          onClick={() => setActiveChat(null)}
+                          aria-label="Back to conversations"
+                          style={{ background: "transparent", border: "none", color: "#f1f5f9", cursor: "pointer", fontSize: 20, padding: 4, lineHeight: 1 }}
+                        >
+                          ←
+                        </button>
                         <Avatar initials={label.avatar} size={36} />
-                        <div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600 }}>{label.name}</div>
                           <div style={{ fontSize: 12, color: "#64748b" }}>{label.sub}</div>
                         </div>
                       </>
                     );
                   })()}
+                  {!activeThread && (
+                    <div style={{ color: "#64748b", fontSize: 13 }}>Pick a conversation from the list</div>
+                  )}
                 </div>
                 <div
                   style={{ flex: 1, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 10 }}
