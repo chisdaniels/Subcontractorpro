@@ -102,7 +102,7 @@ export default function App() {
   const [tab, setTab] = useState(() => {
     if (typeof window === "undefined") return "search";
     const h = window.location.hash.replace(/^#/, "");
-    return ["search", "post", "jobs", "messages", "reviews", "admin"].includes(h) ? h : "search";
+    return ["search", "post", "jobs", "myjobs", "messages", "reviews", "admin"].includes(h) ? h : "search";
   });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [trade, setTrade] = useState("All Trades");
@@ -211,7 +211,7 @@ export default function App() {
     if (typeof window === "undefined") return;
     const onHash = () => {
       const h = window.location.hash.replace(/^#/, "");
-      if (["search", "post", "jobs", "messages", "reviews", "admin"].includes(h)) {
+      if (["search", "post", "jobs", "myjobs", "messages", "reviews", "admin"].includes(h)) {
         setTab(h);
       }
     };
@@ -416,6 +416,7 @@ export default function App() {
   }
 
   const filtered = contractors.filter(c => {
+    if (c.deactivated_at) return false; // hidden from the public board
     const trades = contractorTrades(c);
     const matchTrade = trade === "All Trades" || trades.includes(trade);
     const q = search.toLowerCase();
@@ -750,6 +751,19 @@ export default function App() {
     if (error) { notify("Save failed: " + error.message); return; }
     setCustomerProfileModal(false);
     notify("Profile saved.");
+  }
+
+  async function setContractorDeactivated(contractor, deactivate) {
+    if (!user) return;
+    const payload = deactivate
+      ? { deactivated_at: new Date().toISOString(), deactivated_by: user.id, available: false }
+      : { deactivated_at: null, deactivated_by: null };
+    const { data, error } = await supabase.from("contractors")
+      .update(payload).eq("id", contractor.id).select().single();
+    if (error) { notify("Update failed: " + error.message); return; }
+    setContractors(prev => prev.map(c => c.id === data.id ? data : c));
+    if (myContractor?.id === data.id) setMyContractor(data);
+    notify(deactivate ? `${contractor.name} taken off the board.` : `${contractor.name} back on the board.`);
   }
 
   async function adminSetVerified(contractor, verified) {
@@ -1282,6 +1296,15 @@ function avatarInitials(name) {
           </button>
           {user && (
             <button
+              className={`toolbar-btn ${tab === "myjobs" ? "active" : ""}`}
+              onClick={() => setTab("myjobs")}
+              aria-current={tab === "myjobs" ? "page" : undefined}
+            >
+              My Jobs
+            </button>
+          )}
+          {user && (
+            <button
               className={`toolbar-btn ${tab === "messages" ? "active" : ""}`}
               onClick={() => setTab("messages")}
               aria-current={tab === "messages" ? "page" : undefined}
@@ -1321,7 +1344,19 @@ function avatarInitials(name) {
 
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px" }}>
 
-        {isContractor && !hasCredentialsOnFile(myContractor) && (
+        {isContractor && myContractor?.deactivated_at && (
+          <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#64748b" }}>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 2 }}>Your profile is off the board</div>
+              <div style={{ fontSize: 13, color: "#94a3b8" }}>Homeowners can't find you in search right now. Your account and history are preserved.</div>
+            </div>
+            <button className="btn btn-gold btn-sm" onClick={() => setContractorDeactivated(myContractor, false)}>
+              Put me back on
+            </button>
+          </div>
+        )}
+
+        {isContractor && !myContractor?.deactivated_at && !hasCredentialsOnFile(myContractor) && (
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f87171" }}>
             <div>
               <div style={{ fontWeight: 700, marginBottom: 2 }}>Upload your license &amp; insurance</div>
@@ -1331,7 +1366,7 @@ function avatarInitials(name) {
           </div>
         )}
 
-        {isContractor && hasCredentialsOnFile(myContractor) && !myContractor.verified && (
+        {isContractor && !myContractor?.deactivated_at && hasCredentialsOnFile(myContractor) && !myContractor.verified && (
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#fbbf24" }}>
             <div>
               <div style={{ fontWeight: 700, marginBottom: 2 }}>⏳ Documents under review</div>
@@ -1698,9 +1733,9 @@ function avatarInitials(name) {
               </div>
             ) : (
               <div style={{ display: "grid", gap: 12 }} role="list" aria-label="Open jobs">
-                {jobs.filter(j => trade === "All Trades" || j.trade === trade).map(j => {
-                  const minePicked  = j.accepted_by === user.id;
-                  const taken       = !!j.accepted_by && !minePicked;
+                {jobs.filter(j => !j.accepted_by && (trade === "All Trades" || j.trade === trade)).map(j => {
+                  const minePicked  = false;
+                  const taken       = false;
                   return (
                     <div key={j.id} className="card" style={{ padding: 20, opacity: taken ? 0.6 : 1 }} role="listitem">
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
@@ -1773,15 +1808,97 @@ function avatarInitials(name) {
                     </div>
                   );
                 })}
-                {jobs.filter(j => trade === "All Trades" || j.trade === trade).length === 0 && (
+                {jobs.filter(j => !j.accepted_by && (trade === "All Trades" || j.trade === trade)).length === 0 && (
                   <div style={{ color: "#475569", textAlign: "center", padding: 24 }} role="status">
-                    No jobs match this trade. Try "All Trades".
+                    No open jobs match this trade. Try "All Trades", or check <button className="btn btn-outline btn-sm" onClick={() => setTab("myjobs")} style={{ marginLeft: 4 }}>My Jobs</button> for work you've already accepted.
                   </div>
                 )}
               </div>
             )}
           </section>
         )}
+
+        {/* MY JOBS TAB */}
+        {tab === "myjobs" && user && (() => {
+          const workingOn = jobs.filter(j => j.accepted_by === user.id);
+          const posted    = myJobs;
+          return (
+            <section aria-labelledby="myjobs-heading">
+              <h1 id="myjobs-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>MY JOBS</h1>
+              <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Everything you're working on and everything you've posted.</p>
+
+              {workingOn.length === 0 && posted.length === 0 && (
+                <div className="card" style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>
+                  Nothing here yet. <button className="btn btn-outline btn-sm" onClick={() => setTab("search")}>Find a Pro</button> or <button className="btn btn-outline btn-sm" onClick={() => setTab("post")}>Post a Job</button>.
+                </div>
+              )}
+
+              {workingOn.length > 0 && (
+                <>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Jobs I'm Working On ({workingOn.length})</h2>
+                  <div style={{ display: "grid", gap: 12, marginBottom: 24 }}>
+                    {workingOn.map(j => (
+                      <div key={j.id} className="card" style={{ padding: 18 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
+                          <div style={{ fontWeight: 700, fontSize: 16 }}>{j.title}</div>
+                          {j.budget != null && <span style={{ color: "#f59e0b", fontWeight: 700 }}>${Number(j.budget).toLocaleString()}</span>}
+                        </div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                          <span className="badge">{j.trade}</span>
+                          <span className="badge">{j.location}</span>
+                          {j.status === "completed"
+                            ? <span className="badge avail">✓ Completed</span>
+                            : <span className="badge avail">Accepted</span>}
+                        </div>
+                        {j.description && <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.55, marginBottom: 10 }}>{j.description}</p>}
+                        <div style={{ background: "#064e3b", border: "1px solid #047857", borderRadius: 10, padding: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#34d399", marginBottom: 6 }}>HOMEOWNER CONTACT</div>
+                          {j.homeowner_name && <div style={{ fontWeight: 600 }}>{j.homeowner_name}</div>}
+                          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 13, marginTop: 4 }}>
+                            {j.homeowner_email && <a href={`mailto:${j.homeowner_email}`} style={{ color: "#34d399", textDecoration: "underline" }}>{j.homeowner_email}</a>}
+                            {j.homeowner_phone && <a href={`tel:${j.homeowner_phone}`} style={{ color: "#34d399", textDecoration: "underline" }}>{j.homeowner_phone}</a>}
+                          </div>
+                        </div>
+                        {j.accepted_at && <div style={{ color: "#475569", fontSize: 11, marginTop: 8 }}>Accepted {new Date(j.accepted_at).toLocaleString()}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {posted.length > 0 && (
+                <>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Jobs I've Posted ({posted.length})</h2>
+                  <div style={{ display: "grid", gap: 12 }}>
+                    {posted.map(j => (
+                      <div key={j.id} className="card" style={{ padding: 18 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
+                          <div style={{ fontWeight: 700, fontSize: 16 }}>{j.title}</div>
+                          {j.budget != null && <span style={{ color: "#f59e0b", fontWeight: 700 }}>${Number(j.budget).toLocaleString()}</span>}
+                        </div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                          <span className="badge">{j.trade}</span>
+                          <span className="badge">{j.location}</span>
+                          {j.status === "completed"
+                            ? <span className="badge avail">✓ Completed</span>
+                            : j.accepted_by
+                              ? <span className="badge avail">Accepted</span>
+                              : <span className="badge">Open</span>}
+                        </div>
+                        {j.accepter && (
+                          <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 8 }}>
+                            Accepted by <strong style={{ color: "#f1f5f9" }}>{j.accepter.name}</strong> — see full details on the Post tab.
+                          </div>
+                        )}
+                        <button className="btn btn-outline btn-sm" onClick={() => setTab("post")}>Manage in Post tab →</button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </section>
+          );
+        })()}
 
         {/* MESSAGES TAB */}
         {tab === "messages" && (
@@ -1971,7 +2088,11 @@ function avatarInitials(name) {
                       <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
                         <Avatar initials={c.avatar} size={36} />
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 600 }}>{c.name} <span className="badge avail" style={{ marginLeft: 6 }}>✓ Verified</span></div>
+                          <div style={{ fontWeight: 600 }}>
+                            {c.name}
+                            <span className="badge avail" style={{ marginLeft: 6 }}>✓ Verified</span>
+                            {c.deactivated_at && <span className="badge unavail" style={{ marginLeft: 4 }}>Off board</span>}
+                          </div>
                           <div style={{ fontSize: 12, color: "#94a3b8" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
                         </div>
                       </div>
@@ -2003,9 +2124,51 @@ function avatarInitials(name) {
                           </div>
                         )}
                       </div>
-                      <button className="btn btn-outline btn-sm" onClick={() => adminSetVerified(c, false)} disabled={adminBusy}>
-                        Un-verify
-                      </button>
+                      {(() => {
+                        const acceptedJobs = jobs.filter(j => c.user_id && j.accepted_by === c.user_id);
+                        if (acceptedJobs.length === 0) return null;
+                        return (
+                          <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 8 }}>
+                              JOBS ACCEPTED ({acceptedJobs.length})
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12, color: "#f1f5f9" }}>
+                              {acceptedJobs.map(j => (
+                                <div key={j.id} style={{ borderLeft: "2px solid #334155", paddingLeft: 10 }}>
+                                  <div>
+                                    <strong>{j.title}</strong>
+                                    {" · "}
+                                    <span style={{ color: j.status === "completed" ? "#34d399" : "#fbbf24" }}>{j.status}</span>
+                                  </div>
+                                  <div style={{ color: "#94a3b8" }}>{j.trade} · {j.location}{j.budget != null ? ` · $${Number(j.budget).toLocaleString()}` : ""}</div>
+                                  {(j.homeowner_name || j.homeowner_email) && (
+                                    <div style={{ color: "#94a3b8" }}>
+                                      Posted by <strong style={{ color: "#f1f5f9" }}>{j.homeowner_name || j.homeowner_email}</strong>
+                                      {j.homeowner_email && j.homeowner_name && ` · ${j.homeowner_email}`}
+                                    </div>
+                                  )}
+                                  {j.accepted_at && <div style={{ color: "#64748b" }}>Accepted {new Date(j.accepted_at).toLocaleString()}</div>}
+                                  {j.completed_at && <div style={{ color: "#64748b" }}>Completed {new Date(j.completed_at).toLocaleString()}</div>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button className="btn btn-outline btn-sm" onClick={() => adminSetVerified(c, false)} disabled={adminBusy}>
+                          Un-verify
+                        </button>
+                        {c.deactivated_at ? (
+                          <button className="btn btn-gold btn-sm" onClick={() => setContractorDeactivated(c, false)}>
+                            Put back on board
+                          </button>
+                        ) : (
+                          <button className="btn btn-outline btn-sm" onClick={() => setContractorDeactivated(c, true)} style={{ borderColor: "#f87171", color: "#fca5a5" }}>
+                            Take off board
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </details>
                 ))}
@@ -2058,16 +2221,29 @@ function avatarInitials(name) {
               <div style={{ display: "grid", gap: 8, marginBottom: 32 }}>
                 {jobReleases.map(r => {
                   const contractor = contractors.find(c => c.id === r.contractor_row_id);
+                  const job = jobs.find(j => j.id === r.job_id);
                   return (
-                    <div key={r.id} className="card" style={{ padding: 12, fontSize: 13 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
+                    <div key={r.id} className="card" style={{ padding: 14, fontSize: 13 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
                         <div style={{ fontWeight: 600 }}>
-                          {contractor?.name || "Contractor"} <span style={{ color: "#94a3b8", fontWeight: 400 }}>released from a job</span>
+                          {contractor?.name || "Contractor"} <span style={{ color: "#94a3b8", fontWeight: 400 }}>released</span>
                         </div>
                         <div style={{ color: "#64748b", fontSize: 12 }}>{new Date(r.created_at).toLocaleString()}</div>
                       </div>
-                      <div style={{ color: "#f87171", marginBottom: r.notes ? 6 : 0 }}>Reason: {r.reason}</div>
-                      {r.notes && <div style={{ color: "#94a3b8" }}>{r.notes}</div>}
+                      <div style={{ background: "#0f172a", borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 12, lineHeight: 1.6 }}>
+                        <div style={{ color: "#94a3b8", fontWeight: 700, letterSpacing: 1, fontSize: 10, marginBottom: 4 }}>JOB</div>
+                        <div style={{ color: "#f1f5f9", fontWeight: 600 }}>{job?.title || "(job removed)"}</div>
+                        {job && <div style={{ color: "#94a3b8" }}>{job.trade} · {job.location}{job.budget != null ? ` · $${Number(job.budget).toLocaleString()}` : ""}</div>}
+                        {job && (job.homeowner_name || job.homeowner_email) && (
+                          <div style={{ color: "#94a3b8", marginTop: 4 }}>
+                            Posted by: <strong style={{ color: "#f1f5f9" }}>{job.homeowner_name || job.homeowner_email}</strong>
+                            {job.homeowner_email && job.homeowner_name && <> · {job.homeowner_email}</>}
+                            {job.homeowner_phone && <> · {job.homeowner_phone}</>}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ color: "#f87171", marginBottom: r.notes ? 6 : 0 }}><strong>Reason:</strong> {r.reason}</div>
+                      {r.notes && <div style={{ color: "#94a3b8" }}>Notes: {r.notes}</div>}
                     </div>
                   );
                 })}
@@ -2568,6 +2744,37 @@ function avatarInitials(name) {
                 {profileBusy ? "Saving..." : myContractor ? "Save Changes" : "Create Profile"}
               </button>
             </form>
+            {myContractor && (
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #334155" }}>
+                {myContractor.deactivated_at ? (
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => { setContractorDeactivated(myContractor, false); setProfileModal(false); }}
+                    style={{ width: "100%" }}
+                  >
+                    Put my profile back on the board
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => {
+                      if (confirm("Take yourself off the board? Your profile will be hidden from search. You keep your account and history and can turn it back on anytime.")) {
+                        setContractorDeactivated(myContractor, true);
+                        setProfileModal(false);
+                      }
+                    }}
+                    style={{ width: "100%", borderColor: "#f87171", color: "#fca5a5" }}
+                  >
+                    Take my profile off the board
+                  </button>
+                )}
+                <div style={{ fontSize: 11, color: "#64748b", marginTop: 8, textAlign: "center" }}>
+                  Accounts can't be deleted so nothing is ever lost. This just hides you from search.
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
