@@ -1039,21 +1039,21 @@ function avatarInitials(name) {
                         role="menuitem"
                         onClick={() => { setCustomerProfileModal(true); setUserMenuOpen(false); }}
                       >
-                        👤 My Profile
+                        My Profile
                       </button>
                       <button
                         className="user-menu-item"
                         role="menuitem"
                         onClick={() => { openProfileModal(); setUserMenuOpen(false); }}
                       >
-                        {myContractor ? "⚒ Edit Contractor Profile" : "⚒ Become a Contractor"}
+                        {myContractor ? "Edit Contractor Profile" : "Become a Contractor"}
                       </button>
                       <button
                         className="user-menu-item"
                         role="menuitem"
                         onClick={() => { signOut(); setUserMenuOpen(false); }}
                       >
-                        ↪ Sign Out
+                        Sign Out
                       </button>
                     </div>
                   </>
@@ -1084,14 +1084,14 @@ function avatarInitials(name) {
             onClick={() => setTab("search")}
             aria-current={tab === "search" ? "page" : undefined}
           >
-            🔍 Find a Pro
+            Find a Pro
           </button>
           <button
             className={`toolbar-btn ${tab === "post" ? "active" : ""}`}
             onClick={() => setTab("post")}
             aria-current={tab === "post" ? "page" : undefined}
           >
-            📋 Post a Job
+            Post a Job
           </button>
           {user && (
             <button
@@ -1100,7 +1100,7 @@ function avatarInitials(name) {
               aria-current={tab === "messages" ? "page" : undefined}
               style={{ position: "relative" }}
             >
-              💬 Messages
+              Messages
               {totalUnread > 0 && (
                 <span style={{
                   position: "absolute", top: 6, right: 6,
@@ -1117,7 +1117,7 @@ function avatarInitials(name) {
               onClick={() => setTab("jobs")}
               aria-current={tab === "jobs" ? "page" : undefined}
             >
-              💼 Browse Jobs
+              Browse Jobs
             </button>
           )}
           {isAdmin && (
@@ -1126,7 +1126,7 @@ function avatarInitials(name) {
               onClick={() => setTab("admin")}
               aria-current={tab === "admin" ? "page" : undefined}
             >
-              🛡 Admin
+              Admin
             </button>
           )}
         </nav>
@@ -1420,7 +1420,7 @@ function avatarInitials(name) {
                               className="btn btn-gold btn-sm"
                               onClick={() => openCompleteModal(j)}
                             >
-                              ✓ Mark Complete
+                              Mark Complete
                             </button>
                           )}
                         </div>
@@ -1429,7 +1429,7 @@ function avatarInitials(name) {
                     {!j.accepter && (
                       <div style={{ marginBottom: 8 }}>
                         <button className="btn btn-outline btn-sm" onClick={() => openJobEdit(j)}>
-                          ✏️ Edit Job
+                          Edit Job
                         </button>
                       </div>
                     )}
@@ -1720,7 +1720,7 @@ function avatarInitials(name) {
                     </div>
                     <div style={{ display: "flex", gap: 10 }}>
                       <button className="btn btn-gold btn-sm" onClick={() => adminSetVerified(c, true)} disabled={adminBusy}>
-                        ✓ Verify
+                        Verify
                       </button>
                     </div>
                   </div>
@@ -2033,7 +2033,7 @@ function avatarInitials(name) {
                 style={{ flex: 1 }}
                 onClick={() => { openChatWithContractor(modal); setModal(null); }}
               >
-                💬 Send Message
+                Send Message
               </button>
               {(() => {
                 const job = reviewableJobFor(modal.id);
@@ -2049,7 +2049,7 @@ function avatarInitials(name) {
                       setModal(null);
                     }}
                   >
-                    ⭐ Leave Review
+                    Leave Review
                   </button>
                 );
               })()}
