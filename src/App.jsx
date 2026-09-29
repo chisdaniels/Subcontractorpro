@@ -15,6 +15,72 @@ function Stars({ rating }) {
   );
 }
 
+function CityStateInput({ id, value, onChange, placeholder = "City, State", required = false }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (!value || value.trim().length < 2) { setSuggestions([]); return; }
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(value)}&format=json&countrycodes=us&limit=6&addressdetails=1`
+        );
+        const data = await res.json();
+        const seen = new Set();
+        const items = [];
+        for (const r of data) {
+          const a = r.address || {};
+          const city = a.city || a.town || a.village || a.hamlet || a.county;
+          const state = a.state;
+          if (!city || !state) continue;
+          const label = `${city}, ${state}`;
+          if (seen.has(label)) continue;
+          seen.add(label);
+          items.push(label);
+          if (items.length >= 6) break;
+        }
+        setSuggestions(items);
+      } catch (err) {
+        console.warn("city search failed:", err);
+      }
+    }, 350);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [value]);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        id={id}
+        required={required}
+        placeholder={placeholder}
+        value={value}
+        autoComplete="off"
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && suggestions.length > 0 && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#1e293b", border: "1px solid #334155", borderRadius: 10, zIndex: 60, maxHeight: 240, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
+          {suggestions.map(s => (
+            <button
+              key={s}
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => { onChange(s); setSuggestions([]); setOpen(false); }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", background: "transparent", border: "none", color: "#f1f5f9", cursor: "pointer", fontSize: 15, fontFamily: "inherit" }}
+            >
+              📍 {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Avatar({ initials, size = 48 }) {
   return (
     <div
@@ -1204,13 +1270,11 @@ function avatarInitials(name) {
                 <label htmlFor="job-location" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
                   Location <span aria-hidden="true">*</span>
                 </label>
-                <input
+                <CityStateInput
                   id="job-location"
-                  placeholder="City, State"
-                  value={jobForm.location}
-                  onChange={e => setJobForm(f => ({ ...f, location: e.target.value }))}
                   required
-                  aria-required="true"
+                  value={jobForm.location}
+                  onChange={v => setJobForm(f => ({ ...f, location: v }))}
                 />
               </div>
               <div>
@@ -1971,12 +2035,11 @@ function avatarInitials(name) {
               </div>
               <div>
                 <label htmlFor="pf-location" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Location *</label>
-                <input
+                <CityStateInput
                   id="pf-location"
                   required
-                  placeholder="City, State"
                   value={profileForm.location}
-                  onChange={e => setProfileForm(f => ({ ...f, location: e.target.value }))}
+                  onChange={v => setProfileForm(f => ({ ...f, location: v }))}
                 />
               </div>
               <div>
@@ -2002,8 +2065,9 @@ function avatarInitials(name) {
                 <label htmlFor="pf-website" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Business Website (optional)</label>
                 <input
                   id="pf-website"
-                  type="url"
-                  placeholder="https://your-business.com"
+                  type="text"
+                  inputMode="url"
+                  placeholder="your-business.com"
                   value={profileForm.website}
                   onChange={e => setProfileForm(f => ({ ...f, website: e.target.value }))}
                 />
@@ -2261,7 +2325,7 @@ function avatarInitials(name) {
               </div>
               <div>
                 <label htmlFor="je-location" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Location *</label>
-                <input id="je-location" required value={jobEditModal.location} onChange={e => setJobEditModal(j => ({ ...j, location: e.target.value }))} />
+                <CityStateInput id="je-location" required value={jobEditModal.location} onChange={v => setJobEditModal(j => ({ ...j, location: v }))} />
               </div>
               <div>
                 <label htmlFor="je-desc" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Description</label>
