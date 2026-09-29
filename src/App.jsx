@@ -845,7 +845,7 @@ function avatarInitials(name) {
         .btn-gold { background: #f59e0b; color: #0f172a; }
         .btn-outline { background: transparent; border: 1.5px solid #334155; color: #94a3b8; }
         .btn-sm { padding: 6px 14px; font-size: 13px; border-radius: 8px; }
-        input, textarea, select { background: #0f172a; border: 1.5px solid #334155; border-radius: 10px; color: #f1f5f9; padding: 10px 14px; font-family: inherit; font-size: 14px; width: 100%; outline: none; }
+        input, textarea, select { background: #0f172a; border: 1.5px solid #334155; border-radius: 10px; color: #f1f5f9; padding: 10px 14px; font-family: inherit; font-size: 16px; width: 100%; outline: none; }
         input:focus, textarea:focus, select:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
         .msg-me { background: #f59e0b; color: #0f172a; border-radius: 18px 18px 4px 18px; }
         .msg-them { background: #1e293b; border: 1px solid #334155; border-radius: 18px 18px 18px 4px; }
