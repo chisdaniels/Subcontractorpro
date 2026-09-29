@@ -58,6 +58,7 @@ function ChatHeader({ contractors, contractorId }) {
 
 export default function App() {
   const [tab, setTab] = useState("search");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [trade, setTrade] = useState("All Trades");
   const [search, setSearch] = useState("");
   const [contractors, setContractors] = useState([]);
@@ -221,6 +222,13 @@ export default function App() {
     document.body.style.overflow = modal ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [modal]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleKey = (e) => { if (e.key === "Escape") setMenuOpen(false); };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [menuOpen]);
 
   const filtered = contractors.filter(c => {
     const matchTrade = trade === "All Trades" || c.trade === trade;
@@ -527,9 +535,14 @@ export default function App() {
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-        .tab-btn { background: none; border: none; cursor: pointer; padding: 10px 18px; font-size: 14px; font-weight: 600; color: #94a3b8; border-bottom: 2px solid transparent; transition: all 0.2s; font-family: inherit; white-space: nowrap; }
-        .tab-btn.active { color: #f59e0b; border-bottom-color: #f59e0b; }
-        .tab-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; }
+        .menu-btn { display: flex; align-items: center; gap: 12px; width: 100%; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px 16px; margin: 8px 0 14px; color: #f1f5f9; font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+        .menu-btn:hover { border-color: #f59e0b; }
+        .menu-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
+        .menu-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 6px; display: flex; flex-direction: column; gap: 2px; z-index: 50; box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
+        .menu-item { background: none; border: none; cursor: pointer; padding: 12px 14px; font-size: 15px; font-weight: 600; color: #cbd5e1; border-radius: 8px; text-align: left; font-family: inherit; transition: background 0.15s, color 0.15s; }
+        .menu-item:hover { background: #0f172a; color: #f1f5f9; }
+        .menu-item.active { background: #f59e0b; color: #0f172a; }
+        .menu-item:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; }
         .card { background: #1e293b; border-radius: 16px; border: 1px solid #334155; transition: transform 0.18s, box-shadow 0.18s; }
         .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.25); }
         .badge { display: inline-block; background: #334155; color: #94a3b8; border-radius: 99px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
@@ -553,13 +566,10 @@ export default function App() {
         .star-btn { background: none; border: none; cursor: pointer; padding: 2px; font-size: 24px; line-height: 1; transition: transform 0.1s; }
         .star-btn:hover { transform: scale(1.15); }
         .star-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; border-radius: 2px; }
-        .nav-scroll { display: flex; overflow-x: auto; scrollbar-width: none; }
-        .nav-scroll::-webkit-scrollbar { display: none; }
         .messages-layout { display: grid; grid-template-columns: 220px 1fr; gap: 16px; height: 500px; }
         .chat-sidebar-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 16px; background: #1e293b; border: 1px solid #334155; width: 100%; text-align: left; font-family: inherit; transition: border-color 0.15s; }
         .chat-sidebar-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
         @media (max-width: 640px) {
-          .tab-btn { padding: 10px 10px; font-size: 12px; }
           .messages-layout { grid-template-columns: 1fr; height: auto; }
           .messages-chat { height: 380px; }
           .messages-sidebar-list { flex-direction: row !important; overflow-x: auto; }
@@ -578,24 +588,6 @@ export default function App() {
             <span style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>⚒ TRADELINK</span>
             <span style={{ fontSize: 11, color: "#475569", fontWeight: 600, letterSpacing: 1 }}>PRO</span>
           </div>
-          <nav aria-label="Main navigation" className="nav-scroll" style={{ flex: 1, justifyContent: "center" }}>
-            {TAB_ORDER.filter(t => {
-              if (t === "search" || t === "reviews") return true;
-              if (t === "messages") return !!user;
-              if (t === "post")     return !user || isCustomer;
-              if (t === "jobs")     return isContractor;
-              return true;
-            }).map(t => (
-              <button
-                key={t}
-                className={`tab-btn ${tab === t ? "active" : ""}`}
-                onClick={() => setTab(t)}
-                aria-current={tab === t ? "page" : undefined}
-              >
-                {TAB_LABELS[t]}
-              </button>
-            ))}
-          </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             {user ? (
               <>
@@ -629,6 +621,51 @@ export default function App() {
               </button>
             )}
           </div>
+        </div>
+
+        <div style={{ maxWidth: 900, margin: "0 auto", position: "relative" }}>
+          <button
+            className="menu-btn"
+            onClick={() => setMenuOpen(o => !o)}
+            aria-expanded={menuOpen}
+            aria-controls="main-menu"
+            aria-label="Open menu"
+          >
+            <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">☰</span>
+            <span>Menu · {TAB_LABELS[tab]}</span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "#64748b" }} aria-hidden="true">{menuOpen ? "▲" : "▼"}</span>
+          </button>
+          {menuOpen && (
+            <>
+              <div
+                onClick={() => setMenuOpen(false)}
+                style={{ position: "fixed", inset: 0, zIndex: 40 }}
+                aria-hidden="true"
+              />
+              <nav
+                id="main-menu"
+                aria-label="Main navigation"
+                className="menu-dropdown"
+              >
+                {TAB_ORDER.filter(t => {
+                  if (t === "search" || t === "reviews") return true;
+                  if (t === "messages") return !!user;
+                  if (t === "post")     return !user || isCustomer;
+                  if (t === "jobs")     return isContractor;
+                  return true;
+                }).map(t => (
+                  <button
+                    key={t}
+                    className={`menu-item ${tab === t ? "active" : ""}`}
+                    onClick={() => { setTab(t); setMenuOpen(false); }}
+                    aria-current={tab === t ? "page" : undefined}
+                  >
+                    {TAB_LABELS[t]}
+                  </button>
+                ))}
+              </nav>
+            </>
+          )}
         </div>
       </header>
 
