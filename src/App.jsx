@@ -5,16 +5,6 @@ const TRADES = ["All Trades", "General Contractor", "Plumber", "Electrician", "R
 
 const AVATAR_COLORS = { IR: "#b45309", BS: "#0369a1", VP: "#7c3aed", AR: "#b91c1c", CC: "#047857", TK: "#374151" };
 
-const TAB_LABELS = {
-  search: "🔍 Find",
-  post: "📋 Post Job",
-  jobs: "💼 Jobs",
-  messages: "💬 Messages",
-  reviews: "⭐ Reviews",
-};
-
-const TAB_ORDER = ["search", "post", "jobs", "messages", "reviews"];
-
 function Stars({ rating }) {
   return (
     <span aria-label={`${rating} out of 5 stars`}>
@@ -58,7 +48,6 @@ function ChatHeader({ contractors, contractorId }) {
 
 export default function App() {
   const [tab, setTab] = useState("search");
-  const [menuOpen, setMenuOpen] = useState(false);
   const [trade, setTrade] = useState("All Trades");
   const [search, setSearch] = useState("");
   const [contractors, setContractors] = useState([]);
@@ -222,13 +211,6 @@ export default function App() {
     document.body.style.overflow = modal ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [modal]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleKey = (e) => { if (e.key === "Escape") setMenuOpen(false); };
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [menuOpen]);
 
   const filtered = contractors.filter(c => {
     const matchTrade = trade === "All Trades" || c.trade === trade;
@@ -535,14 +517,11 @@ export default function App() {
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-        .menu-btn { display: flex; align-items: center; gap: 12px; width: 100%; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px 16px; margin: 8px 0 14px; color: #f1f5f9; font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
-        .menu-btn:hover { border-color: #f59e0b; }
-        .menu-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
-        .menu-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 6px; display: flex; flex-direction: column; gap: 2px; z-index: 50; box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
-        .menu-item { background: none; border: none; cursor: pointer; padding: 12px 14px; font-size: 15px; font-weight: 600; color: #cbd5e1; border-radius: 8px; text-align: left; font-family: inherit; transition: background 0.15s, color 0.15s; }
-        .menu-item:hover { background: #0f172a; color: #f1f5f9; }
-        .menu-item.active { background: #f59e0b; color: #0f172a; }
-        .menu-item:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; }
+        .toolbar-btn { flex: 1; background: #1e293b; border: 1px solid #334155; color: #cbd5e1; border-radius: 12px; padding: 14px 16px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s; }
+        .toolbar-btn:hover { border-color: #f59e0b; color: #f1f5f9; }
+        .toolbar-btn:active { transform: scale(0.98); }
+        .toolbar-btn.active { background: #f59e0b; border-color: #f59e0b; color: #0f172a; }
+        .toolbar-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
         .card { background: #1e293b; border-radius: 16px; border: 1px solid #334155; transition: transform 0.18s, box-shadow 0.18s; }
         .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.25); }
         .badge { display: inline-block; background: #334155; color: #94a3b8; border-radius: 99px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
@@ -623,50 +602,32 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ maxWidth: 900, margin: "0 auto", position: "relative" }}>
+        <nav aria-label="Main navigation" style={{ maxWidth: 900, margin: "0 auto", display: "flex", gap: 10, padding: "10px 0 14px" }}>
           <button
-            className="menu-btn"
-            onClick={() => setMenuOpen(o => !o)}
-            aria-expanded={menuOpen}
-            aria-controls="main-menu"
-            aria-label="Open menu"
+            className={`toolbar-btn ${tab === "search" ? "active" : ""}`}
+            onClick={() => setTab("search")}
+            aria-current={tab === "search" ? "page" : undefined}
           >
-            <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">☰</span>
-            <span>Menu · {TAB_LABELS[tab]}</span>
-            <span style={{ marginLeft: "auto", fontSize: 12, color: "#64748b" }} aria-hidden="true">{menuOpen ? "▲" : "▼"}</span>
+            🔍 Find a Pro
           </button>
-          {menuOpen && (
-            <>
-              <div
-                onClick={() => setMenuOpen(false)}
-                style={{ position: "fixed", inset: 0, zIndex: 40 }}
-                aria-hidden="true"
-              />
-              <nav
-                id="main-menu"
-                aria-label="Main navigation"
-                className="menu-dropdown"
-              >
-                {TAB_ORDER.filter(t => {
-                  if (t === "search" || t === "reviews") return true;
-                  if (t === "messages") return !!user;
-                  if (t === "post")     return !user || isCustomer;
-                  if (t === "jobs")     return isContractor;
-                  return true;
-                }).map(t => (
-                  <button
-                    key={t}
-                    className={`menu-item ${tab === t ? "active" : ""}`}
-                    onClick={() => { setTab(t); setMenuOpen(false); }}
-                    aria-current={tab === t ? "page" : undefined}
-                  >
-                    {TAB_LABELS[t]}
-                  </button>
-                ))}
-              </nav>
-            </>
+          {isContractor ? (
+            <button
+              className={`toolbar-btn ${tab === "jobs" ? "active" : ""}`}
+              onClick={() => setTab("jobs")}
+              aria-current={tab === "jobs" ? "page" : undefined}
+            >
+              💼 Browse Jobs
+            </button>
+          ) : (
+            <button
+              className={`toolbar-btn ${tab === "post" ? "active" : ""}`}
+              onClick={() => setTab("post")}
+              aria-current={tab === "post" ? "page" : undefined}
+            >
+              📋 Post a Job
+            </button>
           )}
-        </div>
+        </nav>
       </header>
 
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px" }}>
