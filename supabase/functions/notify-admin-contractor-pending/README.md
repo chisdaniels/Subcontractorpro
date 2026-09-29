@@ -1,64 +1,45 @@
 # notify-admin-contractor-pending
 
 Emails every admin when a contractor uploads or updates their license +
-insurance and is still awaiting verification. Uses the same SMTP server
-already configured for Supabase auth email.
+insurance and is still awaiting verification. Uses [Resend](https://resend.com).
 
 The frontend fires this function automatically after `saveProfile` when
 the contractor row is not yet verified.
 
 ## One-time setup
 
-### 1. Deploy the function
+### 1. Sign up for Resend and get an API key
 
-Install the Supabase CLI (if you don't have it) and log in, then from
-the repo root:
+- Create an account at [resend.com](https://resend.com) (free tier is 3,000
+  emails/month).
+- **Domains** → **Add Domain** → add `subcontractorpros.com` and follow
+  the DNS steps. Skip this while testing and use `onboarding@resend.dev`
+  as the sender.
+- **API Keys** → **Create API Key** → copy it.
+
+### 2. Deploy the function
+
+Paste `index.ts` into the Supabase dashboard's Edge Function editor, or:
 
 ```bash
-npx supabase login
-npx supabase link --project-ref mjlaniudtmdfzrcgmios
 npx supabase functions deploy notify-admin-contractor-pending
 ```
 
-If you'd rather not use the CLI: in the Supabase dashboard, go to
-**Edge Functions → Deploy a new function**, name it exactly
-`notify-admin-contractor-pending`, and paste the contents of
-`index.ts`.
+### 3. Set the secrets
 
-### 2. Set the SMTP secrets
+Dashboard: **Edge Functions → Secrets → New**, add:
 
-The function reads SMTP creds from environment variables. Set them
-either from the dashboard (**Project Settings → Edge Functions →
-Secrets**) or with the CLI:
+| Name | Value |
+|---|---|
+| `RESEND_API_KEY` | the key from step 1 |
+| `MAIL_FROM` | `TradeLinkPro <notifications@subcontractorpros.com>` — or `onboarding@resend.dev` for testing |
+| `APP_URL` | your deployed site URL (the "Open Admin Dashboard" button links here) |
 
-```bash
-npx supabase secrets set \
-  SMTP_HOST=smtp.office365.com \
-  SMTP_PORT=587 \
-  SMTP_USER=support@subcontractorpros.com \
-  SMTP_PASS='your-smtp-password-or-app-password' \
-  SMTP_FROM=support@subcontractorpros.com \
-  APP_URL=https://your-deployed-site.example.com
-```
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically — do NOT set them.
 
-`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected
-automatically by the platform — do not set them by hand.
+### 4. Test
 
-`APP_URL` becomes the "Open Admin Dashboard" button in the email.
-
-### 3. Test
-
-Sign in as a contractor account, upload a license + COI, save the
-profile. Every admin (rows in the `admins` table) will get an email
-within a few seconds.
-
-Check function logs at **Edge Functions → notify-admin-contractor-pending
-→ Logs** if nothing arrives.
-
-## Optional: also trigger from a Database Webhook
-
-The frontend already invokes this on save, so a webhook is redundant
-unless you also want emails when someone updates a contractor row via
-SQL. If you want it: **Database → Webhooks → New Webhook**,
-table `contractors`, events `INSERT` + `UPDATE`, HTTP POST to the
-function URL, add an `Authorization: Bearer <SERVICE_ROLE_KEY>` header.
+Sign in as a contractor account, upload a license + COI, save. Every
+admin (rows in the `admins` table) will get an email within a few
+seconds. Check function logs under **Edge Functions →
+notify-admin-contractor-pending → Logs** if nothing arrives.

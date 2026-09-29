@@ -3,24 +3,21 @@
 // Called by the app right after a contractor uploads or updates their
 // license + insurance. It looks up that contractor row (server-side, from
 // the caller's auth token so it can't be spoofed), checks whether they're
-// awaiting verification, and emails every admin using the same SMTP that
-// runs auth email.
+// awaiting verification, and emails every admin via Resend.
 //
-// Deploy:
+// Deploy: via the Supabase dashboard (Edge Functions → Deploy new) or CLI:
 //   supabase functions deploy notify-admin-contractor-pending
 //
 // Required secrets (set from the Supabase dashboard OR via
 // `supabase secrets set NAME=value`):
-//   SMTP_HOST   e.g. smtp.office365.com
-//   SMTP_PORT   587
-//   SMTP_USER   e.g. support@subcontractorpros.com
-//   SMTP_PASS   the SMTP password/app password
-//   SMTP_FROM   optional; defaults to SMTP_USER
-//   APP_URL     the URL of the deployed site (used in the CTA button)
+//   RESEND_API_KEY   from https://resend.com/api-keys
+//   MAIL_FROM        e.g. "TradeLinkPro <notifications@subcontractorpros.com>"
+//                    (must be from a verified Resend domain, or use
+//                    "onboarding@resend.dev" while testing)
+//   APP_URL          the deployed site URL (used in the CTA button)
 //
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.
 
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CORS_HEADERS = {
@@ -36,9 +33,7 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
-    if (!authHeader) {
-      return json({ error: "missing auth" }, 401);
-    }
+    if (!authHeader) return json({ error: "missing auth" }, 401);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -49,9 +44,7 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !user) {
-      return json({ error: "unauthorized" }, 401);
-    }
+    if (userErr || !user) return json({ error: "unauthorized" }, 401);
 
     // Server-side, look up THIS user's contractor row and the admin list.
     const admin = createClient(supabaseUrl, serviceKey);
@@ -75,24 +68,13 @@ Deno.serve(async (req) => {
       return json({ skipped: "no admins configured" }, 200);
     }
 
-    const smtpHost = Deno.env.get("SMTP_HOST");
-    const smtpUser = Deno.env.get("SMTP_USER");
-    const smtpPass = Deno.env.get("SMTP_PASS");
-    if (!smtpHost || !smtpUser || !smtpPass) {
-      return json({ error: "SMTP env not configured" }, 500);
+    const apiKey = Deno.env.get("RESEND_API_KEY");
+    const from   = Deno.env.get("MAIL_FROM");
+    if (!apiKey || !from) {
+      return json({ error: "RESEND_API_KEY and MAIL_FROM must be set" }, 500);
     }
 
-    const smtp = new SMTPClient({
-      connection: {
-        hostname: smtpHost,
-        port: Number(Deno.env.get("SMTP_PORT") || 587),
-        tls: true,
-        auth: { username: smtpUser, password: smtpPass },
-      },
-    });
-
-    const appUrl = Deno.env.get("APP_URL") || "";
-    const from   = Deno.env.get("SMTP_FROM") || smtpUser;
+    const appUrl  = Deno.env.get("APP_URL") || "";
     const subject = `[TradeLinkPro] Verify: ${contractor.name}`;
 
     const html = `
@@ -118,25 +100,37 @@ Deno.serve(async (req) => {
   </div>
 </body></html>`.trim();
 
-    const textLines = [
+    const text = [
       `${contractor.name} (${contractor.trade}) uploaded credentials and needs verification.`,
       "",
-      `License:   ${contractor.license_type || ""} ${contractor.license_number ? "#" + contractor.license_number : ""}`,
+      `License:     ${contractor.license_type || ""} ${contractor.license_number ? "#" + contractor.license_number : ""}`,
       `License doc: ${contractor.license_url}`,
-      `Insurance: ${contractor.insurance_carrier || ""}${contractor.insurance_expires_at ? ` (expires ${contractor.insurance_expires_at})` : ""}`,
-      `COI:       ${contractor.insurance_url}`,
+      `Insurance:   ${contractor.insurance_carrier || ""}${contractor.insurance_expires_at ? ` (expires ${contractor.insurance_expires_at})` : ""}`,
+      `COI:         ${contractor.insurance_url}`,
       "",
       appUrl ? `Open admin dashboard: ${appUrl}` : "",
     ].filter(Boolean).join("\n");
 
-    await smtp.send({
-      from,
-      to: recipients,
-      subject,
-      content: textLines,
-      html,
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: recipients,
+        subject,
+        html,
+        text,
+      }),
     });
-    await smtp.close();
+
+    const body = await res.text();
+    if (!res.ok) {
+      console.error("resend send failed:", res.status, body);
+      return json({ error: "resend failed", status: res.status, body }, 500);
+    }
 
     return json({ sent: true, recipients: recipients.length }, 200);
   } catch (err) {
