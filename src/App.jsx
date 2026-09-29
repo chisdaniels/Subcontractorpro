@@ -51,7 +51,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authModal, setAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState("signin");
-  const [authForm, setAuthForm] = useState({ email: "", password: "", role: "customer" });
+  const [authForm, setAuthForm] = useState({ email: "", password: "" });
   const [authError, setAuthError] = useState(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -80,9 +80,12 @@ export default function App() {
   const [profileError, setProfileError] = useState(null);
   const [myJobs, setMyJobs] = useState([]);
 
-  const role = user?.user_metadata?.role ?? null;
-  const isCustomer   = role === "customer";
-  const isContractor = role === "contractor";
+  // Roles are now derived from state, not from a metadata flag. Anyone
+  // signed in can post jobs (customer surface); anyone with a `contractors`
+  // row can also accept jobs (contractor surface). A single user can be both.
+  const isSignedIn   = !!user;
+  const isContractor = !!myContractor;
+  const isCustomer   = isSignedIn;
 
   const messagesEndRef = useRef(null);
   const modalRef = useRef(null);
@@ -97,10 +100,9 @@ export default function App() {
 
   useEffect(() => {
     if (tab === "messages" && !user) setTab("search");
-    if (tab === "jobs" && !isContractor) setTab("search");
-    if (tab === "post"  && isContractor) setTab("jobs");
-    if (tab === "admin" && !isAdmin)     setTab("search");
-  }, [tab, user, isContractor, isAdmin]);
+    if (tab === "admin"    && !isAdmin) setTab("search");
+    // 'jobs' and 'post' are open to any signed-in user now — no auto-redirect.
+  }, [tab, user, isAdmin]);
 
   useEffect(() => {
     (async () => {
@@ -426,7 +428,6 @@ export default function App() {
     // Save the poster's defaults so next time we prefill.
     if (user) {
       await supabase.auth.updateUser({ data: {
-        role: user.user_metadata?.role,
         homeowner_name:  jobForm.homeowner_name.trim(),
         homeowner_phone: jobForm.homeowner_phone.trim() || null,
       }});
@@ -514,7 +515,6 @@ export default function App() {
     e.preventDefault();
     if (!user) return;
     const { error } = await supabase.auth.updateUser({ data: {
-      role: user.user_metadata?.role,
       homeowner_name:  customerProfile.homeowner_name.trim(),
       homeowner_phone: customerProfile.homeowner_phone.trim() || null,
     }});
@@ -597,11 +597,7 @@ export default function App() {
     setAuthError(null);
     const { email, password } = authForm;
     if (authMode === "signup") {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { role: authForm.role } },
-      });
+      const { data, error } = await supabase.auth.signUp({ email, password });
       setAuthBusy(false);
       if (error) {
         console.error("signUp error:", error);
@@ -638,14 +634,7 @@ export default function App() {
     notify("Signed out.");
   }
 
-  async function assignRole(chosenRole) {
-    const { data, error } = await supabase.auth.updateUser({ data: { role: chosenRole } });
-    if (error) { notify("Failed to set role: " + error.message); return; }
-    setUser(data.user);
-    notify(chosenRole === "customer" ? "Welcome — you can now post jobs." : "Welcome — you can now browse jobs.");
-  }
-
-  function avatarInitials(name) {
+function avatarInitials(name) {
     const parts = name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -907,16 +896,12 @@ export default function App() {
                     ● {myContractor.available ? "Open" : "Busy"}
                   </button>
                 )}
-                {isContractor && (
-                  <button className="btn btn-outline btn-sm" onClick={openProfileModal} title={user.email}>
-                    {myContractor ? "Edit Profile" : "Create Profile"}
-                  </button>
-                )}
-                {isCustomer && (
-                  <button className="btn btn-outline btn-sm" onClick={() => setCustomerProfileModal(true)} title={user.email}>
-                    My Profile
-                  </button>
-                )}
+                <button className="btn btn-outline btn-sm" onClick={() => setCustomerProfileModal(true)} title={user.email}>
+                  My Profile
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={openProfileModal}>
+                  {myContractor ? "Edit Contractor Profile" : "Become a Contractor"}
+                </button>
                 <button className="btn btn-outline btn-sm" onClick={signOut}>Sign Out</button>
               </>
             ) : (
@@ -929,7 +914,7 @@ export default function App() {
                 </button>
                 <button
                   className="btn btn-gold btn-sm"
-                  onClick={() => { setAuthMode("signup"); setAuthForm(f => ({ ...f, role: "customer" })); setAuthError(null); setAuthModal(true); }}
+                  onClick={() => { setAuthMode("signup"); setAuthError(null); setAuthModal(true); }}
                 >
                   Join Free
                 </button>
@@ -946,21 +931,20 @@ export default function App() {
           >
             🔍 Find a Pro
           </button>
-          {isContractor ? (
+          <button
+            className={`toolbar-btn ${tab === "post" ? "active" : ""}`}
+            onClick={() => setTab("post")}
+            aria-current={tab === "post" ? "page" : undefined}
+          >
+            📋 Post a Job
+          </button>
+          {isContractor && (
             <button
               className={`toolbar-btn ${tab === "jobs" ? "active" : ""}`}
               onClick={() => setTab("jobs")}
               aria-current={tab === "jobs" ? "page" : undefined}
             >
               💼 Browse Jobs
-            </button>
-          ) : (
-            <button
-              className={`toolbar-btn ${tab === "post" ? "active" : ""}`}
-              onClick={() => setTab("post")}
-              aria-current={tab === "post" ? "page" : undefined}
-            >
-              📋 Post a Job
             </button>
           )}
           {isAdmin && (
@@ -977,34 +961,7 @@ export default function App() {
 
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px" }}>
 
-        {user && !role && (
-          <div className="card" style={{ padding: 20, marginBottom: 20, borderColor: "#f59e0b" }}>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Which type of account is this?</div>
-            <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14 }}>
-              Pick one to unlock posting or accepting jobs. You can ignore this if you only want to browse.
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }} className="job-grid">
-              <button className="btn btn-gold" onClick={() => assignRole("customer")}>
-                I'm a Customer<br/><span style={{ fontWeight: 400, fontSize: 12 }}>I need a contractor</span>
-              </button>
-              <button className="btn btn-gold" onClick={() => assignRole("contractor")}>
-                I'm a Contractor<br/><span style={{ fontWeight: 400, fontSize: 12 }}>I want to find jobs</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {isContractor && !myContractor && (
-          <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f59e0b" }}>
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: 2 }}>Complete your contractor profile</div>
-              <div style={{ fontSize: 13, color: "#94a3b8" }}>Add your details plus license &amp; insurance so homeowners can hire you.</div>
-            </div>
-            <button className="btn btn-gold btn-sm" onClick={openProfileModal}>Create Profile</button>
-          </div>
-        )}
-
-        {isContractor && myContractor && !hasCredentialsOnFile(myContractor) && (
+        {isContractor && !hasCredentialsOnFile(myContractor) && (
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f87171" }}>
             <div>
               <div style={{ fontWeight: 700, marginBottom: 2 }}>Upload your license &amp; insurance</div>
@@ -1014,7 +971,7 @@ export default function App() {
           </div>
         )}
 
-        {isContractor && myContractor && hasCredentialsOnFile(myContractor) && !myContractor.verified && (
+        {isContractor && hasCredentialsOnFile(myContractor) && !myContractor.verified && (
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#fbbf24" }}>
             <div>
               <div style={{ fontWeight: 700, marginBottom: 2 }}>⏳ Documents under review</div>
@@ -1041,7 +998,7 @@ export default function App() {
                 </div>
                 <button
                   className="btn btn-gold"
-                  onClick={() => { setAuthMode("signup"); setAuthForm(f => ({ ...f, role: "contractor" })); setAuthError(null); setAuthModal(true); }}
+                  onClick={() => { setAuthMode("signup"); setAuthError(null); setAuthModal(true); }}
                   style={{ whiteSpace: "nowrap" }}
                 >
                   Get Hired →
@@ -1130,9 +1087,9 @@ export default function App() {
               </div>
               <button
                 className="btn btn-gold"
-                onClick={() => { setAuthMode("signup"); setAuthForm(f => ({ ...f, role: "customer" })); setAuthError(null); setAuthModal(true); }}
+                onClick={() => { setAuthMode("signup"); setAuthError(null); setAuthModal(true); }}
               >
-                Sign Up as a Customer
+                Create Account
               </button>
             </div>
           </section>
@@ -1315,16 +1272,6 @@ export default function App() {
                 ))}
               </div>
             )}
-          </section>
-        )}
-
-        {tab === "post" && isContractor && (
-          <section style={{ maxWidth: 560 }}>
-            <h1 style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>POST A JOB</h1>
-            <div className="card" style={{ padding: 24 }}>
-              <div style={{ color: "#94a3b8", marginBottom: 8 }}>Posting jobs is for customers only.</div>
-              <div style={{ fontSize: 14, color: "#64748b" }}>Browse open jobs from the <button className="btn btn-outline btn-sm" onClick={() => setTab("jobs")} style={{ marginLeft: 4 }}>Jobs</button> tab.</div>
-            </div>
           </section>
         )}
 
@@ -2098,37 +2045,8 @@ export default function App() {
             </div>
             <form onSubmit={submitAuth} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {authMode === "signup" && (
-                <div>
-                  <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>I am a...</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    {[
-                      { value: "customer",   label: "Customer",  sub: "I need a contractor" },
-                      { value: "contractor", label: "Contractor", sub: "I want to find jobs" },
-                    ].map(opt => {
-                      const active = authForm.role === opt.value;
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => setAuthForm(f => ({ ...f, role: opt.value }))}
-                          style={{
-                            background: active ? "#f59e0b" : "transparent",
-                            color: active ? "#0f172a" : "#94a3b8",
-                            border: `1.5px solid ${active ? "#f59e0b" : "#334155"}`,
-                            borderRadius: 10,
-                            padding: "10px 12px",
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                            textAlign: "left",
-                          }}
-                          aria-pressed={active}
-                        >
-                          <div style={{ fontWeight: 700, fontSize: 13 }}>{opt.label}</div>
-                          <div style={{ fontSize: 11, opacity: 0.85 }}>{opt.sub}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div style={{ fontSize: 13, color: "#94a3b8", background: "#0f172a", border: "1px solid #334155", borderRadius: 10, padding: "10px 12px", lineHeight: 1.5 }}>
+                  One account, both sides. Post jobs as a customer, and if you're a pro, add a contractor profile to accept work — anytime, from your profile menu.
                 </div>
               )}
               <div>
