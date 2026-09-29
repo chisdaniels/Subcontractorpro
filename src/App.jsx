@@ -66,7 +66,8 @@ export default function App() {
   const [msgInput, setMsgInput] = useState("");
   const [activeChat, setActiveChat] = useState(null);
   const [reviewInput, setReviewInput] = useState({ stars: 5, text: "" });
-  const [reviewTarget, setReviewTarget] = useState(null);
+  const [reviewTarget, setReviewTarget] = useState(null); // { contractorId, jobId } | null
+  const [myReviewedJobIds, setMyReviewedJobIds] = useState(new Set());
   const [modal, setModal] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [jobForm, setJobForm] = useState({ title: "", trade: "Plumber", location: "", budget: "", desc: "", homeowner_name: "", homeowner_email: "", homeowner_phone: "" });
@@ -79,7 +80,12 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [myContractor, setMyContractor] = useState(null);
   const [profileModal, setProfileModal] = useState(false);
-  const [profileForm, setProfileForm] = useState({ name: "", trade: "General Contractor", location: "", hourly: "", bio: "", tags: "" });
+  const [profileForm, setProfileForm] = useState({
+    name: "", trade: "General Contractor", location: "", hourly: "", bio: "", tags: "",
+    license_type: "", license_number: "", insurance_carrier: "", insurance_expires_at: "",
+    license_file: null, insurance_file: null,
+    license_url: "", insurance_url: "",
+  });
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState(null);
   const [myJobs, setMyJobs] = useState([]);
@@ -104,6 +110,19 @@ export default function App() {
     if (tab === "jobs" && !isContractor) setTab("search");
     if (tab === "post"  && isContractor) setTab("jobs");
   }, [tab, user, isContractor]);
+
+  useEffect(() => {
+    if (!user) { setMyReviewedJobIds(new Set()); return; }
+    (async () => {
+      const { data, error } = await supabase
+        .from("reviews")
+        .select("job_id")
+        .eq("user_id", user.id)
+        .not("job_id", "is", null);
+      if (error) { console.error("my reviews load failed:", error); return; }
+      setMyReviewedJobIds(new Set((data || []).map(r => r.job_id)));
+    })();
+  }, [user, reviews]);
 
   useEffect(() => {
     if (!isCustomer) { setMyJobs([]); return; }
@@ -229,32 +248,49 @@ export default function App() {
     if (error) notify("Failed to send. Try again.");
   }
 
+  function reviewableJobFor(contractorId) {
+    // The most recent job the current user posted that this contractor accepted
+    // and that the user has not yet reviewed.
+    if (!user || !isCustomer) return null;
+    const contractor = contractors.find(c => c.id === contractorId);
+    if (!contractor?.user_id) return null;
+    return (
+      myJobs.find(j => j.accepted_by === contractor.user_id && !myReviewedJobIds.has(j.id))
+      ?? null
+    );
+  }
+
   async function submitReview() {
+    if (!reviewTarget || !user) return;
     if (!reviewInput.text.trim()) return;
+    const { contractorId, jobId } = reviewTarget;
+    const job = myJobs.find(j => j.id === jobId);
+    const author = job?.homeowner_name?.trim() || user.email;
     const payload = {
-      contractor_id: reviewTarget,
-      author: "Your Business",
+      contractor_id: contractorId,
+      job_id: jobId,
+      user_id: user.id,
+      author,
       stars: reviewInput.stars,
-      text: reviewInput.text,
+      text: reviewInput.text.trim(),
     };
-    setReviews(prev => ({
-      ...prev,
-      [reviewTarget]: [...(prev[reviewTarget] || []), payload],
-    }));
-    setReviewInput({ stars: 5, text: "" });
-    setReviewTarget(null);
     const { error } = await supabase.from("reviews").insert(payload);
     if (error) {
-      notify("Failed to submit review.");
+      notify("Failed to submit review: " + error.message);
       return;
     }
+    setReviews(prev => ({
+      ...prev,
+      [contractorId]: [...(prev[contractorId] || []), payload],
+    }));
+    setMyReviewedJobIds(prev => new Set(prev).add(jobId));
+    setReviewInput({ stars: 5, text: "" });
+    setReviewTarget(null);
     const { data: cs } = await supabase.from("contractors").select("*").order("id");
     if (cs) {
       setContractors(cs);
-      if (user) {
-        const mine = cs.find(c => c.user_id === user.id);
-        if (mine) setMyContractor(mine);
-      }
+      const mine = cs.find(c => c.user_id === user.id);
+      if (mine) setMyContractor(mine);
     }
     notify("Review submitted!");
   }
@@ -341,37 +377,73 @@ export default function App() {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
 
+  async function uploadCredential(file, kind) {
+    // kind: "license" | "insurance"
+    const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+    const path = `${user.id}/${kind}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from("credentials")
+      .upload(path, file, { upsert: true, contentType: file.type || undefined });
+    if (error) throw new Error(`${kind} upload failed: ${error.message}`);
+    const { data } = supabase.storage.from("credentials").getPublicUrl(path);
+    return data.publicUrl;
+  }
+
   async function saveProfile(e) {
     e.preventDefault();
     if (!user) return;
     setProfileBusy(true);
     setProfileError(null);
-    const tagsArr = profileForm.tags.split(",").map(t => t.trim()).filter(Boolean);
-    const row = {
-      user_id: user.id,
-      name: profileForm.name.trim(),
-      trade: profileForm.trade,
-      location: profileForm.location.trim(),
-      hourly: profileForm.hourly ? Number(profileForm.hourly) : null,
-      bio: profileForm.bio.trim() || null,
-      tags: tagsArr,
-      avatar: avatarInitials(profileForm.name),
-      available: true,
-    };
-    const { data, error } = myContractor
-      ? await supabase.from("contractors").update(row).eq("id", myContractor.id).select().single()
-      : await supabase.from("contractors").insert(row).select().single();
-    setProfileBusy(false);
-    if (error) {
-      setProfileError(error.message);
-      return;
+    try {
+      const tagsArr = profileForm.tags.split(",").map(t => t.trim()).filter(Boolean);
+
+      // Require license + insurance the first time (or when either is missing on file).
+      const hasLicenseOnFile   = !!(profileForm.license_url   || profileForm.license_file);
+      const hasInsuranceOnFile = !!(profileForm.insurance_url || profileForm.insurance_file);
+      if (!hasLicenseOnFile || !hasInsuranceOnFile) {
+        throw new Error("Please upload both a license and a certificate of insurance to activate your profile.");
+      }
+      if (!profileForm.license_number.trim())    throw new Error("License number is required.");
+      if (!profileForm.license_type.trim())      throw new Error("License type is required.");
+      if (!profileForm.insurance_carrier.trim()) throw new Error("Insurance carrier is required.");
+      if (!profileForm.insurance_expires_at)     throw new Error("Insurance expiration date is required.");
+
+      let license_url   = profileForm.license_url;
+      let insurance_url = profileForm.insurance_url;
+      if (profileForm.license_file)   license_url   = await uploadCredential(profileForm.license_file,   "license");
+      if (profileForm.insurance_file) insurance_url = await uploadCredential(profileForm.insurance_file, "insurance");
+
+      const row = {
+        user_id: user.id,
+        name: profileForm.name.trim(),
+        trade: profileForm.trade,
+        location: profileForm.location.trim(),
+        hourly: profileForm.hourly ? Number(profileForm.hourly) : null,
+        bio: profileForm.bio.trim() || null,
+        tags: tagsArr,
+        avatar: avatarInitials(profileForm.name),
+        available: true,
+        license_type:         profileForm.license_type.trim(),
+        license_number:       profileForm.license_number.trim(),
+        license_url,
+        insurance_carrier:    profileForm.insurance_carrier.trim(),
+        insurance_expires_at: profileForm.insurance_expires_at,
+        insurance_url,
+      };
+      const { data, error } = myContractor
+        ? await supabase.from("contractors").update(row).eq("id", myContractor.id).select().single()
+        : await supabase.from("contractors").insert(row).select().single();
+      if (error) throw new Error(error.message);
+      setMyContractor(data);
+      setProfileModal(false);
+      const { data: cs } = await supabase.from("contractors").select("*").order("id");
+      setContractors(cs || []);
+      notify(myContractor ? "Profile updated!" : "Profile created!");
+    } catch (err) {
+      setProfileError(err.message);
+    } finally {
+      setProfileBusy(false);
     }
-    setMyContractor(data);
-    setProfileModal(false);
-    // refresh contractor list so it shows in Find
-    const { data: cs } = await supabase.from("contractors").select("*").order("id");
-    setContractors(cs || []);
-    notify(myContractor ? "Profile updated!" : "Profile created!");
   }
 
   function openProfileModal() {
@@ -382,13 +454,30 @@ export default function App() {
       hourly: myContractor?.hourly?.toString() ?? "",
       bio: myContractor?.bio ?? "",
       tags: (myContractor?.tags ?? []).join(", "),
+      license_type:         myContractor?.license_type ?? "",
+      license_number:       myContractor?.license_number ?? "",
+      license_url:          myContractor?.license_url ?? "",
+      insurance_carrier:    myContractor?.insurance_carrier ?? "",
+      insurance_expires_at: myContractor?.insurance_expires_at ?? "",
+      insurance_url:        myContractor?.insurance_url ?? "",
+      license_file: null,
+      insurance_file: null,
     });
     setProfileError(null);
     setProfileModal(true);
   }
 
+  function isContractorVerified(c) {
+    return !!(c && c.license_url && c.insurance_url);
+  }
+
   async function acceptJob(jobId) {
     if (!user) return;
+    if (!isContractorVerified(myContractor)) {
+      notify("Upload your license + insurance to accept jobs.");
+      openProfileModal();
+      return;
+    }
     const { data, error } = await supabase
       .from("jobs")
       .update({ accepted_by: user.id, accepted_at: new Date().toISOString() })
@@ -566,9 +655,19 @@ export default function App() {
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f59e0b" }}>
             <div>
               <div style={{ fontWeight: 700, marginBottom: 2 }}>Complete your contractor profile</div>
-              <div style={{ fontSize: 13, color: "#94a3b8" }}>Add your name, trade, and rate so homeowners can find you.</div>
+              <div style={{ fontSize: 13, color: "#94a3b8" }}>Add your details plus license &amp; insurance so homeowners can hire you.</div>
             </div>
             <button className="btn btn-gold btn-sm" onClick={openProfileModal}>Create Profile</button>
+          </div>
+        )}
+
+        {isContractor && myContractor && !isContractorVerified(myContractor) && (
+          <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f87171" }}>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 2 }}>Upload your license &amp; insurance</div>
+              <div style={{ fontSize: 13, color: "#94a3b8" }}>Required to accept jobs and to show as verified in search.</div>
+            </div>
+            <button className="btn btn-gold btn-sm" onClick={openProfileModal}>Add Documents</button>
           </div>
         )}
 
@@ -616,6 +715,9 @@ export default function App() {
                       <span className={`badge ${c.available ? "avail" : "unavail"}`}>
                         {c.available ? "Available" : "Busy"}
                       </span>
+                      {isContractorVerified(c) && (
+                        <span className="badge avail" title="License & insurance on file">✓ Verified</span>
+                      )}
                     </div>
                     <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 6 }}>{c.trade} · {c.location}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
@@ -805,8 +907,26 @@ export default function App() {
                     {j.accepter && (
                       <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 8 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 6 }}>ACCEPTED BY</div>
-                        <div style={{ fontWeight: 600 }}>{j.accepter.name}</div>
-                        <div style={{ fontSize: 13, color: "#94a3b8" }}>{j.accepter.trade} · {j.accepter.location}</div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          <div>
+                            <div style={{ fontWeight: 600 }}>{j.accepter.name}</div>
+                            <div style={{ fontSize: 13, color: "#94a3b8" }}>{j.accepter.trade} · {j.accepter.location}</div>
+                          </div>
+                          {myReviewedJobIds.has(j.id) ? (
+                            <span className="badge avail">✓ Reviewed</span>
+                          ) : (
+                            <button
+                              className="btn btn-outline btn-sm"
+                              onClick={() => {
+                                setReviewTarget({ contractorId: j.accepter.id, jobId: j.id });
+                                setReviewInput({ stars: 5, text: "" });
+                                setTab("reviews");
+                              }}
+                            >
+                              ⭐ Leave Review
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                     {j.description && (
@@ -905,17 +1025,26 @@ export default function App() {
                         <div style={{ color: "#475569", fontSize: 11 }}>
                           Posted {new Date(j.created_at).toLocaleString()}
                         </div>
-                        {!j.accepted_by && (
-                          <button
-                            className="btn btn-gold btn-sm"
-                            onClick={() => acceptJob(j.id)}
-                            disabled={!myContractor}
-                            title={!myContractor ? "Complete your profile first" : undefined}
-                            style={{ opacity: !myContractor ? 0.5 : 1 }}
-                          >
-                            Accept Job
-                          </button>
-                        )}
+                        {!j.accepted_by && (() => {
+                          const verified = isContractorVerified(myContractor);
+                          const blocked  = !myContractor || !verified;
+                          const title = !myContractor
+                            ? "Create your profile first"
+                            : !verified
+                              ? "Upload license & insurance to accept jobs"
+                              : undefined;
+                          return (
+                            <button
+                              className="btn btn-gold btn-sm"
+                              onClick={() => acceptJob(j.id)}
+                              disabled={blocked}
+                              title={title}
+                              style={{ opacity: blocked ? 0.5 : 1 }}
+                            >
+                              Accept Job
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
@@ -1030,17 +1159,28 @@ export default function App() {
                       <Stars rating={c.rating} />
                       <span style={{ color: "#f59e0b", fontWeight: 700 }}>{c.rating}</span>
                     </div>
-                    <button
-                      className="btn btn-outline btn-sm"
-                      onClick={() => { setReviewTarget(reviewTarget === c.id ? null : c.id); setReviewInput({ stars: 5, text: "" }); }}
-                      aria-expanded={reviewTarget === c.id}
-                      aria-controls={`review-form-${c.id}`}
-                    >
-                      {reviewTarget === c.id ? "Cancel" : "+ Review"}
-                    </button>
+                    {(() => {
+                      const job = reviewableJobFor(c.id);
+                      const open = reviewTarget?.contractorId === c.id;
+                      if (!job && !open) return null;
+                      return (
+                        <button
+                          className="btn btn-outline btn-sm"
+                          onClick={() => {
+                            if (open) { setReviewTarget(null); return; }
+                            setReviewTarget({ contractorId: c.id, jobId: job.id });
+                            setReviewInput({ stars: 5, text: "" });
+                          }}
+                          aria-expanded={open}
+                          aria-controls={`review-form-${c.id}`}
+                        >
+                          {open ? "Cancel" : "+ Review"}
+                        </button>
+                      );
+                    })()}
                   </div>
 
-                  {reviewTarget === c.id && (
+                  {reviewTarget?.contractorId === c.id && (
                     <form
                       id={`review-form-${c.id}`}
                       style={{ background: "#0f172a", borderRadius: 12, padding: 16, marginBottom: 14 }}
@@ -1153,6 +1293,34 @@ export default function App() {
                 <div style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>Status</div>
               </div>
             </div>
+
+            {isContractorVerified(modal) ? (
+              <div style={{ background: "#064e3b", border: "1px solid #047857", borderRadius: 12, padding: 14, marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#34d399", marginBottom: 8 }}>
+                  ✓ VERIFIED CREDENTIALS
+                </div>
+                <div style={{ fontSize: 13, color: "#f1f5f9", lineHeight: 1.7 }}>
+                  <div>
+                    <strong>{modal.license_type || "License"}</strong>
+                    {modal.license_number ? ` · #${modal.license_number}` : ""}
+                    {" · "}
+                    <a href={modal.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a>
+                  </div>
+                  <div>
+                    <strong>Insurance</strong>
+                    {modal.insurance_carrier ? ` · ${modal.insurance_carrier}` : ""}
+                    {modal.insurance_expires_at ? ` · expires ${modal.insurance_expires_at}` : ""}
+                    {" · "}
+                    <a href={modal.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ background: "#3b1515", border: "1px solid #7f1d1d", borderRadius: 12, padding: 14, marginBottom: 20, fontSize: 13, color: "#fca5a5" }}>
+                This contractor has not uploaded license or insurance documents yet.
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: 10 }}>
               <button
                 className="btn btn-gold"
@@ -1161,13 +1329,24 @@ export default function App() {
               >
                 💬 Send Message
               </button>
-              <button
-                className="btn btn-outline"
-                style={{ flex: 1 }}
-                onClick={() => { setReviewTarget(modal.id); setTab("reviews"); setModal(null); }}
-              >
-                ⭐ Leave Review
-              </button>
+              {(() => {
+                const job = reviewableJobFor(modal.id);
+                if (!job) return null;
+                return (
+                  <button
+                    className="btn btn-outline"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      setReviewTarget({ contractorId: modal.id, jobId: job.id });
+                      setReviewInput({ stars: 5, text: "" });
+                      setTab("reviews");
+                      setModal(null);
+                    }}
+                  >
+                    ⭐ Leave Review
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -1248,6 +1427,96 @@ export default function App() {
                   onChange={e => setProfileForm(f => ({ ...f, bio: e.target.value }))}
                 />
               </div>
+
+              <div style={{ borderTop: "1px solid #334155", paddingTop: 16, marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
+                  LICENSE & INSURANCE <span style={{ color: "#f87171" }}>*</span>
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
+                  Required before you can accept jobs. Files are shown to customers so they can verify you.
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="job-grid">
+                  <div>
+                    <label htmlFor="pf-lic-type" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>License Type *</label>
+                    <input
+                      id="pf-lic-type"
+                      required
+                      placeholder="e.g. General Contractor"
+                      value={profileForm.license_type}
+                      onChange={e => setProfileForm(f => ({ ...f, license_type: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="pf-lic-num" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>License Number *</label>
+                    <input
+                      id="pf-lic-num"
+                      required
+                      placeholder="e.g. TX-123456"
+                      value={profileForm.license_number}
+                      onChange={e => setProfileForm(f => ({ ...f, license_number: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <label htmlFor="pf-lic-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                    License Document (PDF or image) {profileForm.license_url ? "" : "*"}
+                  </label>
+                  <input
+                    id="pf-lic-file"
+                    type="file"
+                    accept="application/pdf,image/*"
+                    onChange={e => setProfileForm(f => ({ ...f, license_file: e.target.files?.[0] || null }))}
+                  />
+                  {profileForm.license_url && !profileForm.license_file && (
+                    <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
+                      ✓ On file — <a href={profileForm.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }} className="job-grid">
+                  <div>
+                    <label htmlFor="pf-ins-carrier" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Insurance Carrier *</label>
+                    <input
+                      id="pf-ins-carrier"
+                      required
+                      placeholder="e.g. State Farm"
+                      value={profileForm.insurance_carrier}
+                      onChange={e => setProfileForm(f => ({ ...f, insurance_carrier: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="pf-ins-exp" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Insurance Expires *</label>
+                    <input
+                      id="pf-ins-exp"
+                      type="date"
+                      required
+                      value={profileForm.insurance_expires_at}
+                      onChange={e => setProfileForm(f => ({ ...f, insurance_expires_at: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <label htmlFor="pf-ins-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                    Certificate of Insurance (PDF or image) {profileForm.insurance_url ? "" : "*"}
+                  </label>
+                  <input
+                    id="pf-ins-file"
+                    type="file"
+                    accept="application/pdf,image/*"
+                    onChange={e => setProfileForm(f => ({ ...f, insurance_file: e.target.files?.[0] || null }))}
+                  />
+                  {profileForm.insurance_url && !profileForm.insurance_file && (
+                    <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
+                      ✓ On file — <a href={profileForm.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {profileError && (
                 <div style={{ color: "#f87171", fontSize: 13, background: "#3b1515", padding: "8px 12px", borderRadius: 8 }} role="alert">
                   {profileError}
