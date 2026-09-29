@@ -640,6 +640,35 @@ export default function App() {
     }
   }
 
+  async function reopenJob(job) {
+    if (!user) return;
+    if (!confirm("Reopen this job? Your review will be removed and the contractor stays assigned. You can Mark Complete again later.")) return;
+    // Wipe the review we auto-posted at completion (if any) so the unique
+    // (job_id, contractor_id) index doesn't block a future Mark Complete.
+    if (job.accepter?.id) {
+      const { error: rErr } = await supabase.from("reviews")
+        .delete()
+        .eq("job_id", job.id)
+        .eq("user_id", user.id);
+      if (rErr) console.error("delete review failed:", rErr);
+    }
+    const { error } = await supabase.from("jobs").update({
+      completed_at: null,
+      completion_rating: null,
+      completion_comment: null,
+    }).eq("id", job.id);
+    if (error) { notify("Reopen failed: " + error.message); return; }
+    setMyReviewedJobIds(prev => {
+      const next = new Set(prev);
+      next.delete(job.id);
+      return next;
+    });
+    await loadJobs();
+    const { data: cs } = await supabase.from("contractors").select("*").order("id");
+    if (cs) setContractors(cs);
+    notify("Job reopened. Review was removed.");
+  }
+
   function openReleaseModal(job) {
     setReleaseInput({ reason: "Contractor never contacted me", notes: "" });
     setReleaseModal(job);
@@ -1583,7 +1612,12 @@ function avatarInitials(name) {
                             )}
                           </div>
                           {j.status === "completed" || myReviewedJobIds.has(j.id) ? (
-                            <span className="badge avail">✓ Completed</span>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                              <span className="badge avail">✓ Completed</span>
+                              <button className="btn btn-outline btn-sm" onClick={() => reopenJob(j)}>
+                                Mark Uncompleted
+                              </button>
+                            </div>
                           ) : (
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                               <button className="btn btn-gold btn-sm" onClick={() => openCompleteModal(j)}>
