@@ -874,8 +874,32 @@ function avatarInitials(name) {
       await loadJobs();
       return;
     }
+    const acceptedJob = data[0];
     await loadJobs();
     notify("Job accepted!");
+
+    // Drop an intro message into the customer's inbox so they can reply.
+    if (acceptedJob.posted_by && acceptedJob.posted_by !== user.id && myContractor?.id) {
+      const introText = `Hi${acceptedJob.homeowner_name ? " " + acceptedJob.homeowner_name : ""}, I just accepted your job "${acceptedJob.title}". Let me know when you'd like to get started — happy to answer any questions here.`;
+      const { error: msgErr } = await supabase.from("messages").insert({
+        contractor_id: myContractor.id,
+        sender_id:     user.id,
+        recipient_id:  acceptedJob.posted_by,
+        sender_email:  user.email,
+        text:          introText,
+      });
+      if (msgErr) console.error("intro message insert failed:", msgErr);
+    }
+
+    // Email the customer with the news + a link back to messages.
+    console.log("[TradeLinkPro] Invoking notify-customer-job-accepted for job", jobId);
+    try {
+      const r = await supabase.functions.invoke("notify-customer-job-accepted", { body: { jobId } });
+      console.log("[TradeLinkPro] job-accepted email result:", r);
+      if (r.error) notify("Job accepted, but email failed: " + (r.error.message || r.error));
+    } catch (err) {
+      console.error("[TradeLinkPro] job-accepted email threw:", err);
+    }
   }
 
   async function toggleAvailable() {
