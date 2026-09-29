@@ -141,6 +141,14 @@ export default function App() {
   const [completeModal, setCompleteModal] = useState(null); // job being marked complete
   const [completeInput, setCompleteInput] = useState({ rating: 5, comment: "", reviewText: "" });
   const [completeBusy, setCompleteBusy] = useState(false);
+  const [releaseModal, setReleaseModal] = useState(null); // job to release
+  const [releaseInput, setReleaseInput] = useState({ reason: "Contractor never contacted me", notes: "" });
+  const [releaseBusy, setReleaseBusy] = useState(false);
+  const [supportModal, setSupportModal] = useState(false);
+  const [supportInput, setSupportInput] = useState({ subject: "", body: "" });
+  const [supportBusy, setSupportBusy] = useState(false);
+  const [jobReleases, setJobReleases] = useState([]);
+  const [supportTickets, setSupportTickets] = useState([]);
   const [myContractor, setMyContractor] = useState(null);
   const [profileModal, setProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -201,16 +209,22 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!isAdmin) { setAdminList([]); setAdminInvites([]); return; }
+    if (!isAdmin) { setAdminList([]); setAdminInvites([]); setJobReleases([]); setSupportTickets([]); return; }
     (async () => {
-      const [aRes, iRes] = await Promise.all([
+      const [aRes, iRes, rRes, tRes] = await Promise.all([
         supabase.from("admins").select("*").order("created_at"),
         supabase.from("admin_invites").select("*").order("created_at"),
+        supabase.from("job_releases").select("*").order("created_at", { ascending: false }),
+        supabase.from("support_tickets").select("*").order("created_at", { ascending: false }),
       ]);
       if (aRes.error) console.error("admins list failed:", aRes.error);
       if (iRes.error) console.error("admin invites list failed:", iRes.error);
+      if (rRes.error) console.error("job releases load failed:", rRes.error);
+      if (tRes.error) console.error("support tickets load failed:", tRes.error);
       setAdminList(aRes.data || []);
       setAdminInvites(iRes.data || []);
+      setJobReleases(rRes.data || []);
+      setSupportTickets(tRes.data || []);
     })();
   }, [isAdmin]);
 
@@ -589,6 +603,77 @@ export default function App() {
     } finally {
       setCompleteBusy(false);
     }
+  }
+
+  function openReleaseModal(job) {
+    setReleaseInput({ reason: "Contractor never contacted me", notes: "" });
+    setReleaseModal(job);
+  }
+
+  async function submitRelease(e) {
+    e.preventDefault();
+    if (!releaseModal || !user) return;
+    setReleaseBusy(true);
+    try {
+      const { error: relErr } = await supabase.from("job_releases").insert({
+        job_id: releaseModal.id,
+        contractor_row_id: releaseModal.accepter?.id ?? null,
+        contractor_user_id: releaseModal.accepted_by ?? null,
+        released_by: user.id,
+        reason: releaseInput.reason,
+        notes: releaseInput.notes.trim() || null,
+      });
+      if (relErr) throw new Error("Log release failed: " + relErr.message);
+
+      const { error: jobErr } = await supabase
+        .from("jobs")
+        .update({ accepted_by: null, accepted_at: null })
+        .eq("id", releaseModal.id);
+      if (jobErr) throw new Error("Reopen job failed: " + jobErr.message);
+
+      setReleaseModal(null);
+      await loadJobs();
+      notify("Job released. It's back on the open list.");
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      setReleaseBusy(false);
+    }
+  }
+
+  async function submitSupport(e) {
+    e.preventDefault();
+    setSupportBusy(true);
+    try {
+      const email = user?.email || supportInput.email;
+      if (!email) throw new Error("Please enter an email so we can reply.");
+      if (!supportInput.subject.trim() || !supportInput.body.trim()) {
+        throw new Error("Subject and message are both required.");
+      }
+      const { data: t, error } = await supabase.from("support_tickets").insert({
+        user_id: user?.id ?? null,
+        email,
+        subject: supportInput.subject.trim(),
+        body:    supportInput.body.trim(),
+      }).select().single();
+      if (error) throw new Error(error.message);
+      supabase.functions
+        .invoke("notify-admins-support-ticket", { body: { ticketId: t.id } })
+        .catch(err => console.error("notify support failed:", err));
+      setSupportModal(false);
+      setSupportInput({ subject: "", body: "" });
+      notify("Support request sent. We'll reply by email.");
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      setSupportBusy(false);
+    }
+  }
+
+  async function adminUpdateTicket(ticket, patch) {
+    const { error } = await supabase.from("support_tickets").update(patch).eq("id", ticket.id);
+    if (error) { notify("Update failed: " + error.message); return; }
+    setSupportTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, ...patch } : t));
   }
 
   async function saveCustomerProfile(e) {
@@ -1018,6 +1103,7 @@ function avatarInitials(name) {
           .job-grid { grid-template-columns: 1fr !important; }
           .modal { padding: 20px !important; border-radius: 16px !important; }
           .modal-bg { padding: 12px !important; }
+          .modal input[type="date"] { max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; -webkit-appearance: none !important; appearance: none !important; }
         }
       `}</style>
 
@@ -1075,6 +1161,13 @@ function avatarInitials(name) {
                       <button
                         className="user-menu-item"
                         role="menuitem"
+                        onClick={() => { setSupportModal(true); setUserMenuOpen(false); }}
+                      >
+                        Support
+                      </button>
+                      <button
+                        className="user-menu-item"
+                        role="menuitem"
                         onClick={() => { signOut(); setUserMenuOpen(false); }}
                       >
                         Sign Out
@@ -1085,6 +1178,12 @@ function avatarInitials(name) {
               </>
             ) : (
               <>
+                <button
+                  className="btn btn-outline btn-sm"
+                  onClick={() => setSupportModal(true)}
+                >
+                  Support
+                </button>
                 <button
                   className="btn btn-outline btn-sm"
                   onClick={() => { setAuthMode("signin"); setAuthError(null); setAuthModal(true); }}
@@ -1451,12 +1550,14 @@ function avatarInitials(name) {
                           {j.status === "completed" || myReviewedJobIds.has(j.id) ? (
                             <span className="badge avail">✓ Completed</span>
                           ) : (
-                            <button
-                              className="btn btn-gold btn-sm"
-                              onClick={() => openCompleteModal(j)}
-                            >
-                              Mark Complete
-                            </button>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              <button className="btn btn-gold btn-sm" onClick={() => openCompleteModal(j)}>
+                                Mark Complete
+                              </button>
+                              <button className="btn btn-outline btn-sm" onClick={() => openReleaseModal(j)}>
+                                Release Contractor
+                              </button>
+                            </div>
                           )}
                         </div>
                         <details style={{ background: "#1e293b", borderRadius: 8, padding: 10, fontSize: 12 }}>
@@ -1835,6 +1936,68 @@ function avatarInitials(name) {
               </div>
             )}
 
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
+              Support Tickets ({supportTickets.filter(t => t.status === "open").length} open · {supportTickets.length} total)
+            </h2>
+            {supportTickets.length === 0 ? (
+              <div style={{ color: "#475569", padding: 12, marginBottom: 32 }}>No tickets yet.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 8, marginBottom: 32 }}>
+                {supportTickets.map(t => (
+                  <details key={t.id} className="card" style={{ padding: 0 }}>
+                    <summary style={{ padding: 12, cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {t.subject}
+                          {t.status === "open" ? <span className="badge" style={{ marginLeft: 8, background: "#7c2d12", color: "#fed7aa" }}>OPEN</span> : <span className="badge avail" style={{ marginLeft: 8 }}>closed</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#94a3b8" }}>{t.email} · {new Date(t.created_at).toLocaleString()}</div>
+                      </div>
+                      <span style={{ fontSize: 12, color: "#64748b" }}>▾</span>
+                    </summary>
+                    <div style={{ padding: "0 14px 14px" }}>
+                      <div style={{ background: "#0f172a", borderRadius: 8, padding: 12, fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 10, color: "#f1f5f9" }}>
+                        {t.body}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <a href={`mailto:${t.email}?subject=Re: ${encodeURIComponent(t.subject)}`} className="btn btn-gold btn-sm" style={{ textDecoration: "none" }}>Reply by email</a>
+                        {t.status === "open" ? (
+                          <button className="btn btn-outline btn-sm" onClick={() => adminUpdateTicket(t, { status: "closed", resolved_at: new Date().toISOString(), resolved_by: user.id })}>Mark closed</button>
+                        ) : (
+                          <button className="btn btn-outline btn-sm" onClick={() => adminUpdateTicket(t, { status: "open", resolved_at: null, resolved_by: null })}>Reopen</button>
+                        )}
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
+              Job Releases ({jobReleases.length})
+            </h2>
+            {jobReleases.length === 0 ? (
+              <div style={{ color: "#475569", padding: 12, marginBottom: 32 }}>No releases yet.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 8, marginBottom: 32 }}>
+                {jobReleases.map(r => {
+                  const contractor = contractors.find(c => c.id === r.contractor_row_id);
+                  return (
+                    <div key={r.id} className="card" style={{ padding: 12, fontSize: 13 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
+                        <div style={{ fontWeight: 600 }}>
+                          {contractor?.name || "Contractor"} <span style={{ color: "#94a3b8", fontWeight: 400 }}>released from a job</span>
+                        </div>
+                        <div style={{ color: "#64748b", fontSize: 12 }}>{new Date(r.created_at).toLocaleString()}</div>
+                      </div>
+                      <div style={{ color: "#f87171", marginBottom: r.notes ? 6 : 0 }}>Reason: {r.reason}</div>
+                      {r.notes && <div style={{ color: "#94a3b8" }}>{r.notes}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Trade Types ({tradeTypes.length})</h2>
             <form onSubmit={adminAddTrade} className="card" style={{ padding: 14, marginBottom: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
               <input
@@ -2068,6 +2231,28 @@ function avatarInitials(name) {
               </div>
             )}
 
+            {(reviews[modal.id] || []).length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 10 }}>
+                  REVIEWS ({(reviews[modal.id] || []).length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 260, overflowY: "auto" }}>
+                  {(reviews[modal.id] || []).slice().reverse().map((r, i) => (
+                    <div key={i} style={{ background: "#0f172a", borderRadius: 10, padding: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 4 }}>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{r.author}</span>
+                        <span aria-label={`${r.stars} stars`}>
+                          {[...Array(r.stars)].map((_, j) => (
+                            <span key={j} style={{ color: "#f59e0b" }} aria-hidden="true">★</span>
+                          ))}
+                        </span>
+                      </div>
+                      <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>{r.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 10 }}>
               <button
                 className="btn btn-gold"
@@ -2469,6 +2654,113 @@ function avatarInitials(name) {
               </div>
               <button type="submit" className="btn btn-gold" disabled={jobEditBusy}>
                 {jobEditBusy ? "Saving..." : "Save Changes"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* RELEASE CONTRACTOR MODAL */}
+      {releaseModal && (
+        <div className="modal-bg" onClick={() => setReleaseModal(null)} role="presentation">
+          <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>RELEASE CONTRACTOR</h2>
+              <button className="btn btn-outline btn-sm" onClick={() => setReleaseModal(null)} aria-label="Close">✕</button>
+            </div>
+            <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13 }}>
+              <div style={{ color: "#94a3b8" }}>Releasing:</div>
+              <div style={{ fontWeight: 600 }}>{releaseModal.accepter?.name || "Contractor"}</div>
+              <div style={{ color: "#94a3b8" }}>on "{releaseModal.title}"</div>
+            </div>
+            <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14 }}>
+              The job will go back to Open so other contractors can accept it. The reason you pick is shared with our admin team so we can track contractor behavior.
+            </p>
+            <form onSubmit={submitRelease} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label htmlFor="rm-reason" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Reason *</label>
+                <select
+                  id="rm-reason"
+                  value={releaseInput.reason}
+                  onChange={e => setReleaseInput(r => ({ ...r, reason: e.target.value }))}
+                >
+                  <option>Contractor never contacted me</option>
+                  <option>Contractor was too slow to respond</option>
+                  <option>Contractor's rating wasn't what I hoped</option>
+                  <option>Contractor cancelled or backed out</option>
+                  <option>I changed my mind about the job</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="rm-notes" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Additional details (optional)</label>
+                <textarea
+                  id="rm-notes"
+                  rows={3}
+                  placeholder="Anything else our team should know?"
+                  value={releaseInput.notes}
+                  onChange={e => setReleaseInput(r => ({ ...r, notes: e.target.value }))}
+                />
+              </div>
+              <button type="submit" className="btn btn-gold" disabled={releaseBusy}>
+                {releaseBusy ? "Releasing..." : "Release & Relist Job"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUPPORT TICKET MODAL */}
+      {supportModal && (
+        <div className="modal-bg" onClick={() => setSupportModal(false)} role="presentation">
+          <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>CONTACT SUPPORT</h2>
+              <button className="btn btn-outline btn-sm" onClick={() => setSupportModal(false)} aria-label="Close">✕</button>
+            </div>
+            <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14 }}>
+              Send us a note and we'll reply by email — usually within a business day.
+            </p>
+            <form onSubmit={submitSupport} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {!user && (
+                <div>
+                  <label htmlFor="sup-email" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Your Email *</label>
+                  <input
+                    id="sup-email"
+                    type="email"
+                    required
+                    value={supportInput.email || ""}
+                    onChange={e => setSupportInput(s => ({ ...s, email: e.target.value }))}
+                  />
+                </div>
+              )}
+              {user && (
+                <div style={{ fontSize: 12, color: "#64748b" }}>
+                  Replying to <strong style={{ color: "#94a3b8" }}>{user.email}</strong>
+                </div>
+              )}
+              <div>
+                <label htmlFor="sup-subject" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Subject *</label>
+                <input
+                  id="sup-subject"
+                  required
+                  value={supportInput.subject}
+                  onChange={e => setSupportInput(s => ({ ...s, subject: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="sup-body" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Message *</label>
+                <textarea
+                  id="sup-body"
+                  rows={5}
+                  required
+                  placeholder="Tell us what's going on..."
+                  value={supportInput.body}
+                  onChange={e => setSupportInput(s => ({ ...s, body: e.target.value }))}
+                />
+              </div>
+              <button type="submit" className="btn btn-gold" disabled={supportBusy}>
+                {supportBusy ? "Sending..." : "Send"}
               </button>
             </form>
           </div>
