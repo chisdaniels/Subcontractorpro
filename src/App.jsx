@@ -54,6 +54,18 @@ export default function App() {
   const [authForm, setAuthForm] = useState({ email: "", password: "", role: "customer" });
   const [authError, setAuthError] = useState(null);
   const [authBusy, setAuthBusy] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminList, setAdminList] = useState([]);
+  const [adminInvites, setAdminInvites] = useState([]);
+  const [adminInviteInput, setAdminInviteInput] = useState("");
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [customerProfileModal, setCustomerProfileModal] = useState(false);
+  const [customerProfile, setCustomerProfile] = useState({ homeowner_name: "", homeowner_phone: "" });
+  const [jobEditModal, setJobEditModal] = useState(null);
+  const [jobEditBusy, setJobEditBusy] = useState(false);
+  const [completeModal, setCompleteModal] = useState(null); // job being marked complete
+  const [completeInput, setCompleteInput] = useState({ rating: 5, comment: "", reviewText: "" });
+  const [completeBusy, setCompleteBusy] = useState(false);
   const [myContractor, setMyContractor] = useState(null);
   const [profileModal, setProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -85,7 +97,51 @@ export default function App() {
     if (tab === "messages" && !user) setTab("search");
     if (tab === "jobs" && !isContractor) setTab("search");
     if (tab === "post"  && isContractor) setTab("jobs");
-  }, [tab, user, isContractor]);
+    if (tab === "admin" && !isAdmin)     setTab("search");
+  }, [tab, user, isContractor, isAdmin]);
+
+  useEffect(() => {
+    if (!user) { setIsAdmin(false); return; }
+    (async () => {
+      const { data, error } = await supabase
+        .from("admins")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) { console.error("admin check failed:", error); return; }
+      setIsAdmin(!!data);
+    })();
+  }, [user]);
+
+  useEffect(() => {
+    if (!isAdmin) { setAdminList([]); setAdminInvites([]); return; }
+    (async () => {
+      const [aRes, iRes] = await Promise.all([
+        supabase.from("admins").select("*").order("created_at"),
+        supabase.from("admin_invites").select("*").order("created_at"),
+      ]);
+      if (aRes.error) console.error("admins list failed:", aRes.error);
+      if (iRes.error) console.error("admin invites list failed:", iRes.error);
+      setAdminList(aRes.data || []);
+      setAdminInvites(iRes.data || []);
+    })();
+  }, [isAdmin]);
+
+  useEffect(() => {
+    const meta = user?.user_metadata ?? {};
+    setCustomerProfile({
+      homeowner_name:  meta.homeowner_name  ?? "",
+      homeowner_phone: meta.homeowner_phone ?? "",
+    });
+    if (user && (meta.homeowner_name || meta.homeowner_phone || user.email)) {
+      setJobForm(f => ({
+        ...f,
+        homeowner_name:  f.homeowner_name  || meta.homeowner_name  || "",
+        homeowner_email: f.homeowner_email || user.email           || "",
+        homeowner_phone: f.homeowner_phone || meta.homeowner_phone || "",
+      }));
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user) { setMyReviewedJobIds(new Set()); return; }
@@ -347,9 +403,151 @@ export default function App() {
       notify("Failed to post job: " + error.message);
       return;
     }
+    // Save the poster's defaults so next time we prefill.
+    if (user) {
+      await supabase.auth.updateUser({ data: {
+        role: user.user_metadata?.role,
+        homeowner_name:  jobForm.homeowner_name.trim(),
+        homeowner_phone: jobForm.homeowner_phone.trim() || null,
+      }});
+    }
     setJobForm({ title: "", trade: "Plumber", location: "", budget: "", desc: "", homeowner_name: "", homeowner_email: "", homeowner_phone: "" });
     await loadJobs();
     notify("Job posted! Contractors will reach out shortly.");
+  }
+
+  function openJobEdit(job) {
+    setJobEditModal({ ...job });
+  }
+
+  async function saveJobEdit(e) {
+    e.preventDefault();
+    if (!jobEditModal) return;
+    setJobEditBusy(true);
+    const { id, title, trade, location, budget, description } = jobEditModal;
+    const { error } = await supabase
+      .from("jobs")
+      .update({
+        title,
+        trade,
+        location,
+        budget: budget === "" || budget == null ? null : Number(budget),
+        description,
+      })
+      .eq("id", id);
+    setJobEditBusy(false);
+    if (error) { notify("Failed to save job: " + error.message); return; }
+    setJobEditModal(null);
+    await loadJobs();
+    notify("Job updated.");
+  }
+
+  function openCompleteModal(job) {
+    setCompleteInput({ rating: 5, comment: "", reviewText: "" });
+    setCompleteModal(job);
+  }
+
+  async function submitComplete(e) {
+    e.preventDefault();
+    if (!completeModal || !user) return;
+    if (!completeInput.reviewText.trim()) {
+      notify("Please share a quick review before submitting.");
+      return;
+    }
+    setCompleteBusy(true);
+    try {
+      const { error: jobErr } = await supabase
+        .from("jobs")
+        .update({
+          completed_at:        new Date().toISOString(),
+          completion_rating:   completeInput.rating,
+          completion_comment:  completeInput.comment.trim() || null,
+        })
+        .eq("id", completeModal.id);
+      if (jobErr) throw new Error("Couldn't mark complete: " + jobErr.message);
+
+      const author = completeModal.homeowner_name?.trim() || user.email;
+      const { error: revErr } = await supabase.from("reviews").insert({
+        contractor_id: completeModal.accepter.id,
+        job_id:        completeModal.id,
+        user_id:       user.id,
+        author,
+        stars:         completeInput.rating,
+        text:          completeInput.reviewText.trim(),
+      });
+      if (revErr) throw new Error("Couldn't post review: " + revErr.message);
+
+      setMyReviewedJobIds(prev => new Set(prev).add(completeModal.id));
+      setCompleteModal(null);
+      await loadJobs();
+      const { data: cs } = await supabase.from("contractors").select("*").order("id");
+      if (cs) setContractors(cs);
+      notify("Job marked complete and review posted. Thanks!");
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      setCompleteBusy(false);
+    }
+  }
+
+  async function saveCustomerProfile(e) {
+    e.preventDefault();
+    if (!user) return;
+    const { error } = await supabase.auth.updateUser({ data: {
+      role: user.user_metadata?.role,
+      homeowner_name:  customerProfile.homeowner_name.trim(),
+      homeowner_phone: customerProfile.homeowner_phone.trim() || null,
+    }});
+    if (error) { notify("Save failed: " + error.message); return; }
+    setCustomerProfileModal(false);
+    notify("Profile saved.");
+  }
+
+  async function adminSetVerified(contractor, verified) {
+    setAdminBusy(true);
+    const payload = verified
+      ? { verified: true,  verified_at: new Date().toISOString(), verified_by: user.id }
+      : { verified: false, verified_at: null, verified_by: null };
+    const { error } = await supabase.from("contractors").update(payload).eq("id", contractor.id);
+    setAdminBusy(false);
+    if (error) { notify("Verify failed: " + error.message); return; }
+    setContractors(prev => prev.map(c => c.id === contractor.id ? { ...c, ...payload } : c));
+    notify(verified ? `Verified ${contractor.name}.` : `Un-verified ${contractor.name}.`);
+  }
+
+  async function adminInvite(e) {
+    e.preventDefault();
+    const email = adminInviteInput.trim().toLowerCase();
+    if (!email) return;
+    setAdminBusy(true);
+    // If the user already exists, add them straight to admins by looking up
+    // via a public "who's in admins.email" search. We can't query auth.users
+    // from the client, so just always insert into admin_invites; the DB
+    // trigger promotes them if they exist or on their next signup.
+    const { error } = await supabase.from("admin_invites").insert({
+      email,
+      invited_by: user.id,
+    });
+    setAdminBusy(false);
+    if (error) { notify("Invite failed: " + error.message); return; }
+    setAdminInviteInput("");
+    const { data } = await supabase.from("admin_invites").select("*").order("created_at");
+    setAdminInvites(data || []);
+    notify(`Invite recorded for ${email}. They'll become admin on next login.`);
+  }
+
+  async function adminRevokeInvite(email) {
+    const { error } = await supabase.from("admin_invites").delete().eq("email", email);
+    if (error) { notify("Revoke failed: " + error.message); return; }
+    setAdminInvites(prev => prev.filter(i => i.email !== email));
+  }
+
+  async function adminRemoveAdmin(row) {
+    if (row.user_id === user.id) { notify("You can't remove yourself."); return; }
+    const { error } = await supabase.from("admins").delete().eq("user_id", row.user_id);
+    if (error) { notify("Remove failed: " + error.message); return; }
+    setAdminList(prev => prev.filter(a => a.user_id !== row.user_id));
+    notify(`Removed ${row.email}.`);
   }
 
   async function submitAuth(e) {
@@ -502,8 +700,11 @@ export default function App() {
     setProfileModal(true);
   }
 
-  function isContractorVerified(c) {
+  function hasCredentialsOnFile(c) {
     return !!(c && c.license_url && c.insurance_url);
+  }
+  function isContractorVerified(c) {
+    return !!(c && c.verified === true && hasCredentialsOnFile(c));
   }
 
   async function acceptJob(jobId) {
@@ -655,6 +856,11 @@ export default function App() {
                     {myContractor ? "Edit Profile" : "Create Profile"}
                   </button>
                 )}
+                {isCustomer && (
+                  <button className="btn btn-outline btn-sm" onClick={() => setCustomerProfileModal(true)} title={user.email}>
+                    My Profile
+                  </button>
+                )}
                 <button className="btn btn-outline btn-sm" onClick={signOut}>Sign Out</button>
               </>
             ) : (
@@ -701,6 +907,15 @@ export default function App() {
               📋 Post a Job
             </button>
           )}
+          {isAdmin && (
+            <button
+              className={`toolbar-btn ${tab === "admin" ? "active" : ""}`}
+              onClick={() => setTab("admin")}
+              aria-current={tab === "admin" ? "page" : undefined}
+            >
+              🛡 Admin
+            </button>
+          )}
         </nav>
       </header>
 
@@ -733,13 +948,23 @@ export default function App() {
           </div>
         )}
 
-        {isContractor && myContractor && !isContractorVerified(myContractor) && (
+        {isContractor && myContractor && !hasCredentialsOnFile(myContractor) && (
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f87171" }}>
             <div>
               <div style={{ fontWeight: 700, marginBottom: 2 }}>Upload your license &amp; insurance</div>
               <div style={{ fontSize: 13, color: "#94a3b8" }}>Required to accept jobs and to show as verified in search.</div>
             </div>
             <button className="btn btn-gold btn-sm" onClick={openProfileModal}>Add Documents</button>
+          </div>
+        )}
+
+        {isContractor && myContractor && hasCredentialsOnFile(myContractor) && !myContractor.verified && (
+          <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#fbbf24" }}>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 2 }}>⏳ Documents under review</div>
+              <div style={{ fontSize: 13, color: "#94a3b8" }}>Our team will verify your license &amp; insurance shortly. You'll be able to accept jobs once approved.</div>
+            </div>
+            <button className="btn btn-outline btn-sm" onClick={openProfileModal}>Update Documents</button>
           </div>
         )}
 
@@ -990,9 +1215,11 @@ export default function App() {
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                       <span className="badge">{j.trade}</span>
                       <span className="badge">{j.location}</span>
-                      {j.accepted_by
-                        ? <span className="badge avail">Accepted</span>
-                        : <span className="badge">Open</span>}
+                      {j.status === "completed"
+                        ? <span className="badge avail">✓ Completed</span>
+                        : j.accepted_by
+                          ? <span className="badge avail">Accepted</span>
+                          : <span className="badge">Open</span>}
                     </div>
                     {j.accepter && (
                       <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 8 }}>
@@ -1002,21 +1229,24 @@ export default function App() {
                             <div style={{ fontWeight: 600 }}>{j.accepter.name}</div>
                             <div style={{ fontSize: 13, color: "#94a3b8" }}>{j.accepter.trade} · {j.accepter.location}</div>
                           </div>
-                          {myReviewedJobIds.has(j.id) ? (
-                            <span className="badge avail">✓ Reviewed</span>
+                          {j.status === "completed" || myReviewedJobIds.has(j.id) ? (
+                            <span className="badge avail">✓ Completed</span>
                           ) : (
                             <button
-                              className="btn btn-outline btn-sm"
-                              onClick={() => {
-                                setReviewTarget({ contractorId: j.accepter.id, jobId: j.id });
-                                setReviewInput({ stars: 5, text: "" });
-                                setTab("reviews");
-                              }}
+                              className="btn btn-gold btn-sm"
+                              onClick={() => openCompleteModal(j)}
                             >
-                              ⭐ Leave Review
+                              ✓ Mark Complete
                             </button>
                           )}
                         </div>
+                      </div>
+                    )}
+                    {!j.accepter && (
+                      <div style={{ marginBottom: 8 }}>
+                        <button className="btn btn-outline btn-sm" onClick={() => openJobEdit(j)}>
+                          ✏️ Edit Job
+                        </button>
                       </div>
                     )}
                     {j.description && (
@@ -1257,6 +1487,104 @@ export default function App() {
               </div>
             </div>
             )}
+          </section>
+        )}
+
+        {/* ADMIN TAB */}
+        {tab === "admin" && isAdmin && (
+          <section aria-labelledby="admin-heading">
+            <h1 id="admin-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>ADMIN</h1>
+            <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Verify contractor documents and manage the admin team.</p>
+
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
+              Pending Verification ({contractors.filter(c => hasCredentialsOnFile(c) && !c.verified).length})
+            </h2>
+            {contractors.filter(c => hasCredentialsOnFile(c) && !c.verified).length === 0 ? (
+              <div style={{ color: "#475569", padding: 20 }}>Nothing waiting for review. 🎉</div>
+            ) : (
+              <div style={{ display: "grid", gap: 12, marginBottom: 32 }}>
+                {contractors.filter(c => hasCredentialsOnFile(c) && !c.verified).map(c => (
+                  <div key={c.id} className="card" style={{ padding: 18 }}>
+                    <div style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 10 }}>
+                      <Avatar initials={c.avatar} size={44} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700 }}>{c.name}</div>
+                        <div style={{ fontSize: 13, color: "#94a3b8" }}>{c.trade} · {c.location}</div>
+                      </div>
+                    </div>
+                    <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 13, lineHeight: 1.7 }}>
+                      <div>
+                        <strong>{c.license_type || "License"}</strong>
+                        {c.license_number ? ` · #${c.license_number}` : ""}
+                        {" · "}
+                        <a href={c.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view license</a>
+                      </div>
+                      <div>
+                        <strong>Insurance</strong>
+                        {c.insurance_carrier ? ` · ${c.insurance_carrier}` : ""}
+                        {c.insurance_expires_at ? ` · expires ${c.insurance_expires_at}` : ""}
+                        {" · "}
+                        <a href={c.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view COI</a>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button className="btn btn-gold btn-sm" onClick={() => adminSetVerified(c, true)} disabled={adminBusy}>
+                        ✓ Verify
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
+              Verified Contractors ({contractors.filter(c => c.verified).length})
+            </h2>
+            <div style={{ display: "grid", gap: 8, marginBottom: 32 }}>
+              {contractors.filter(c => c.verified).map(c => (
+                <div key={c.id} className="card" style={{ padding: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                  <div>
+                    <span style={{ fontWeight: 600 }}>{c.name}</span>
+                    <span style={{ color: "#64748b", fontSize: 13, marginLeft: 8 }}>{c.trade}</span>
+                  </div>
+                  <button className="btn btn-outline btn-sm" onClick={() => adminSetVerified(c, false)} disabled={adminBusy}>
+                    Un-verify
+                  </button>
+                </div>
+              ))}
+              {contractors.filter(c => c.verified).length === 0 && (
+                <div style={{ color: "#475569", padding: 12 }}>None yet.</div>
+              )}
+            </div>
+
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Admin Team</h2>
+            <form onSubmit={adminInvite} className="card" style={{ padding: 14, marginBottom: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <input
+                type="email"
+                required
+                placeholder="Invite someone by email"
+                value={adminInviteInput}
+                onChange={e => setAdminInviteInput(e.target.value)}
+                style={{ flex: 1, minWidth: 220 }}
+              />
+              <button type="submit" className="btn btn-gold" disabled={adminBusy}>Send Invite</button>
+            </form>
+            <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
+              {adminList.map(a => (
+                <div key={a.user_id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#0f172a", borderRadius: 8, fontSize: 13 }}>
+                  <span>🛡 {a.email}</span>
+                  {a.user_id !== user.id && (
+                    <button className="btn btn-outline btn-sm" onClick={() => adminRemoveAdmin(a)}>Remove</button>
+                  )}
+                </div>
+              ))}
+              {adminInvites.map(i => (
+                <div key={i.email} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#0f172a", borderRadius: 8, fontSize: 13, color: "#94a3b8" }}>
+                  <span>⏳ {i.email} (pending — becomes admin on next sign-in)</span>
+                  <button className="btn btn-outline btn-sm" onClick={() => adminRevokeInvite(i.email)}>Revoke</button>
+                </div>
+              ))}
+            </div>
           </section>
         )}
 
@@ -1737,6 +2065,151 @@ export default function App() {
                 style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 13, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}
               >
                 {authMode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOMER PROFILE MODAL */}
+      {customerProfileModal && (
+        <div className="modal-bg" onClick={() => setCustomerProfileModal(false)} role="presentation">
+          <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" style={{ maxWidth: 440 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>MY PROFILE</h2>
+              <button className="btn btn-outline btn-sm" onClick={() => setCustomerProfileModal(false)} aria-label="Close">✕</button>
+            </div>
+            <form onSubmit={saveCustomerProfile} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label htmlFor="cp-email" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Email</label>
+                <input id="cp-email" value={user?.email || ""} disabled style={{ opacity: 0.7 }} />
+                <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Email is managed from your account and used on every job you post.</div>
+              </div>
+              <div>
+                <label htmlFor="cp-name" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Your Name</label>
+                <input
+                  id="cp-name"
+                  placeholder="First & last name"
+                  value={customerProfile.homeowner_name}
+                  onChange={e => setCustomerProfile(p => ({ ...p, homeowner_name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="cp-phone" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Phone</label>
+                <input
+                  id="cp-phone"
+                  type="tel"
+                  placeholder="(555) 555-5555"
+                  value={customerProfile.homeowner_phone}
+                  onChange={e => setCustomerProfile(p => ({ ...p, homeowner_phone: e.target.value }))}
+                />
+              </div>
+              <div style={{ fontSize: 12, color: "#64748b" }}>
+                These prefill on every job you post so you don't have to retype them.
+              </div>
+              <button type="submit" className="btn btn-gold">Save Profile</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* JOB EDIT MODAL */}
+      {jobEditModal && (
+        <div className="modal-bg" onClick={() => setJobEditModal(null)} role="presentation">
+          <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>EDIT JOB</h2>
+              <button className="btn btn-outline btn-sm" onClick={() => setJobEditModal(null)} aria-label="Close">✕</button>
+            </div>
+            <form onSubmit={saveJobEdit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label htmlFor="je-title" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Job Title *</label>
+                <input id="je-title" required value={jobEditModal.title} onChange={e => setJobEditModal(j => ({ ...j, title: e.target.value }))} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="job-grid">
+                <div>
+                  <label htmlFor="je-trade" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Trade</label>
+                  <select id="je-trade" value={jobEditModal.trade} onChange={e => setJobEditModal(j => ({ ...j, trade: e.target.value }))}>
+                    {TRADES.filter(t => t !== "All Trades").map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="je-budget" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Budget ($)</label>
+                  <input id="je-budget" type="number" min="0" value={jobEditModal.budget ?? ""} onChange={e => setJobEditModal(j => ({ ...j, budget: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="je-location" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Location *</label>
+                <input id="je-location" required value={jobEditModal.location} onChange={e => setJobEditModal(j => ({ ...j, location: e.target.value }))} />
+              </div>
+              <div>
+                <label htmlFor="je-desc" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Description</label>
+                <textarea id="je-desc" rows={4} value={jobEditModal.description ?? ""} onChange={e => setJobEditModal(j => ({ ...j, description: e.target.value }))} />
+              </div>
+              <button type="submit" className="btn btn-gold" disabled={jobEditBusy}>
+                {jobEditBusy ? "Saving..." : "Save Changes"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MARK COMPLETE MODAL */}
+      {completeModal && (
+        <div className="modal-bg" onClick={() => setCompleteModal(null)} role="presentation">
+          <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" style={{ maxWidth: 520 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>HOW DID IT GO?</h2>
+              <button className="btn btn-outline btn-sm" onClick={() => setCompleteModal(null)} aria-label="Close">✕</button>
+            </div>
+            <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13 }}>
+              <div style={{ color: "#94a3b8" }}>Reviewing:</div>
+              <div style={{ fontWeight: 600 }}>{completeModal.accepter?.name}</div>
+              <div style={{ color: "#94a3b8" }}>{completeModal.title}</div>
+            </div>
+            <form onSubmit={submitComplete} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
+                <legend style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>Rate the work</legend>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      className="star-btn"
+                      onClick={() => setCompleteInput(c => ({ ...c, rating: s }))}
+                      aria-label={`${s} star${s !== 1 ? "s" : ""}`}
+                      aria-pressed={s <= completeInput.rating}
+                      style={{ color: s <= completeInput.rating ? "#f59e0b" : "#334155" }}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <div>
+                <label htmlFor="cm-review" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Public review *</label>
+                <textarea
+                  id="cm-review"
+                  rows={3}
+                  required
+                  placeholder="How was working with them? What would other homeowners want to know?"
+                  value={completeInput.reviewText}
+                  onChange={e => setCompleteInput(c => ({ ...c, reviewText: e.target.value }))}
+                />
+                <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Shown on the contractor's profile.</div>
+              </div>
+              <div>
+                <label htmlFor="cm-comment" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Private note to TradeLink (optional)</label>
+                <textarea
+                  id="cm-comment"
+                  rows={2}
+                  placeholder="Anything we should know? Not shown publicly."
+                  value={completeInput.comment}
+                  onChange={e => setCompleteInput(c => ({ ...c, comment: e.target.value }))}
+                />
+              </div>
+              <button type="submit" className="btn btn-gold" disabled={completeBusy}>
+                {completeBusy ? "Submitting..." : "Complete & Post Review"}
               </button>
             </form>
           </div>
