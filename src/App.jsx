@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase";
 
-const TRADES = ["All Trades", "General Contractor", "Plumber", "Electrician", "Roofer", "Carpenter", "Mason", "Flooring", "Cabinets", "Countertops", "Landscaping", "Dirt Work"];
+const FALLBACK_TRADES = ["General Contractor", "Plumber", "Electrician", "Roofer", "Carpenter", "Mason", "Flooring", "Cabinets", "Countertops", "Landscaping", "Dirt Work", "Painting", "Sheetrock"];
 
 const AVATAR_COLORS = { IR: "#b45309", BS: "#0369a1", VP: "#7c3aed", AR: "#b91c1c", CC: "#047857", TK: "#374151" };
 
@@ -59,6 +59,8 @@ export default function App() {
   const [adminInvites, setAdminInvites] = useState([]);
   const [adminInviteInput, setAdminInviteInput] = useState("");
   const [adminBusy, setAdminBusy] = useState(false);
+  const [tradeTypes, setTradeTypes] = useState(FALLBACK_TRADES);
+  const [newTradeInput, setNewTradeInput] = useState("");
   const [customerProfileModal, setCustomerProfileModal] = useState(false);
   const [customerProfile, setCustomerProfile] = useState({ homeowner_name: "", homeowner_phone: "" });
   const [jobEditModal, setJobEditModal] = useState(null);
@@ -99,6 +101,16 @@ export default function App() {
     if (tab === "post"  && isContractor) setTab("jobs");
     if (tab === "admin" && !isAdmin)     setTab("search");
   }, [tab, user, isContractor, isAdmin]);
+
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase.from("trade_types").select("name").order("name");
+      if (error) { console.error("trade_types load failed:", error); return; }
+      if (data && data.length) setTradeTypes(data.map(r => r.name));
+    })();
+  }, []);
+
+  const TRADES = ["All Trades", ...tradeTypes];
 
   useEffect(() => {
     if (!user) { setIsAdmin(false); return; }
@@ -548,6 +560,27 @@ export default function App() {
     const { error } = await supabase.from("admin_invites").delete().eq("email", email);
     if (error) { notify("Revoke failed: " + error.message); return; }
     setAdminInvites(prev => prev.filter(i => i.email !== email));
+  }
+
+  async function adminAddTrade(e) {
+    e.preventDefault();
+    const name = newTradeInput.trim();
+    if (!name) return;
+    setAdminBusy(true);
+    const { error } = await supabase.from("trade_types").insert({ name });
+    setAdminBusy(false);
+    if (error) { notify("Add trade failed: " + error.message); return; }
+    setTradeTypes(prev => [...new Set([...prev, name])].sort());
+    setNewTradeInput("");
+    notify(`Added ${name}.`);
+  }
+
+  async function adminRemoveTrade(name) {
+    if (!confirm(`Remove "${name}" from the trade list? Existing contractors keep it on their profile, but no one can pick it for new profiles.`)) return;
+    const { error } = await supabase.from("trade_types").delete().eq("name", name);
+    if (error) { notify("Remove trade failed: " + error.message); return; }
+    setTradeTypes(prev => prev.filter(t => t !== name));
+    notify(`Removed ${name}.`);
   }
 
   async function adminRemoveAdmin(row) {
@@ -1577,6 +1610,29 @@ export default function App() {
               ))}
               {contractors.filter(c => c.verified).length === 0 && (
                 <div style={{ color: "#475569", padding: 12 }}>None yet.</div>
+              )}
+            </div>
+
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Trade Types ({tradeTypes.length})</h2>
+            <form onSubmit={adminAddTrade} className="card" style={{ padding: 14, marginBottom: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <input
+                required
+                placeholder="Add a trade (e.g. HVAC)"
+                value={newTradeInput}
+                onChange={e => setNewTradeInput(e.target.value)}
+                style={{ flex: 1, minWidth: 220 }}
+              />
+              <button type="submit" className="btn btn-gold" disabled={adminBusy}>Add Trade</button>
+            </form>
+            <div style={{ display: "grid", gap: 6, marginBottom: 32 }}>
+              {tradeTypes.map(t => (
+                <div key={t} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "#0f172a", borderRadius: 8, fontSize: 13 }}>
+                  <span>{t}</span>
+                  <button className="btn btn-outline btn-sm" onClick={() => adminRemoveTrade(t)}>Remove</button>
+                </div>
+              ))}
+              {tradeTypes.length === 0 && (
+                <div style={{ color: "#475569", padding: 12 }}>No trades yet — add one above.</div>
               )}
             </div>
 
