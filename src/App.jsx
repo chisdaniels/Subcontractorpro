@@ -1037,19 +1037,6 @@ function avatarInitials(name) {
                       <button
                         className="user-menu-item"
                         role="menuitem"
-                        onClick={() => { setTab("messages"); setUserMenuOpen(false); }}
-                      >
-                        💬 Messages
-                        {totalUnread > 0 && (
-                          <span style={{
-                            background: "#dc2626", color: "#fff", marginLeft: 8,
-                            fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-                          }}>{totalUnread}</span>
-                        )}
-                      </button>
-                      <button
-                        className="user-menu-item"
-                        role="menuitem"
                         onClick={() => { setCustomerProfileModal(true); setUserMenuOpen(false); }}
                       >
                         👤 My Profile
@@ -1091,7 +1078,7 @@ function avatarInitials(name) {
           </div>
         </div>
 
-        <nav aria-label="Main navigation" style={{ maxWidth: 900, margin: "0 auto", display: "flex", gap: 10, padding: "10px 0 14px" }}>
+        <nav aria-label="Main navigation" style={{ maxWidth: 900, margin: "0 auto", display: "flex", gap: 8, padding: "10px 0 14px", flexWrap: "wrap" }}>
           <button
             className={`toolbar-btn ${tab === "search" ? "active" : ""}`}
             onClick={() => setTab("search")}
@@ -1106,6 +1093,24 @@ function avatarInitials(name) {
           >
             📋 Post a Job
           </button>
+          {user && (
+            <button
+              className={`toolbar-btn ${tab === "messages" ? "active" : ""}`}
+              onClick={() => setTab("messages")}
+              aria-current={tab === "messages" ? "page" : undefined}
+              style={{ position: "relative" }}
+            >
+              💬 Messages
+              {totalUnread > 0 && (
+                <span style={{
+                  position: "absolute", top: 6, right: 6,
+                  background: "#dc2626", color: "#fff",
+                  fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 999,
+                  minWidth: 20, textAlign: "center", lineHeight: 1.3,
+                }}>{totalUnread}</span>
+              )}
+            </button>
+          )}
           {isContractor && (
             <button
               className={`toolbar-btn ${tab === "jobs" ? "active" : ""}`}
