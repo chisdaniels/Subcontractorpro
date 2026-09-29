@@ -34,6 +34,7 @@ function Avatar({ initials, size = 48 }) {
 
 export default function App() {
   const [tab, setTab] = useState("search");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [trade, setTrade] = useState("All Trades");
   const [search, setSearch] = useState("");
   const [contractors, setContractors] = useState([]);
@@ -281,6 +282,13 @@ export default function App() {
     document.body.style.overflow = modal ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [modal]);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handleKey = (e) => { if (e.key === "Escape") setUserMenuOpen(false); };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [userMenuOpen]);
 
   function contractorTrades(c) {
     return Array.isArray(c?.trades) && c.trades.length ? c.trades : c?.trade ? [c.trade] : [];
@@ -829,6 +837,10 @@ function avatarInitials(name) {
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+        .user-menu { position: absolute; top: calc(100% + 8px); right: 0; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 6px; min-width: 240px; display: flex; flex-direction: column; gap: 2px; z-index: 50; box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
+        .user-menu-item { background: none; border: none; cursor: pointer; padding: 12px 14px; font-size: 14px; font-weight: 600; color: #cbd5e1; border-radius: 8px; text-align: left; font-family: inherit; transition: background 0.15s, color 0.15s; white-space: nowrap; }
+        .user-menu-item:hover { background: #0f172a; color: #f1f5f9; }
+        .user-menu-item:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; }
         .toolbar-btn { flex: 1; background: #1e293b; border: 1px solid #334155; color: #cbd5e1; border-radius: 12px; padding: 14px 16px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s; }
         .toolbar-btn:hover { border-color: #f59e0b; color: #f1f5f9; }
         .toolbar-btn:active { transform: scale(0.98); }
@@ -874,35 +886,62 @@ function avatarInitials(name) {
       )}
 
       <header style={{ background: "#0f172a", borderBottom: "1px solid #1e293b", padding: "0 20px" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60, gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-            <span style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>⚒ TRADELINK</span>
+        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60, gap: 12, position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, minWidth: 0 }}>
+            <span style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", whiteSpace: "nowrap" }}>⚒ TRADELINK</span>
             <span style={{ fontSize: 11, color: "#475569", fontWeight: 600, letterSpacing: 1 }}>PRO</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, position: "relative" }}>
             {user ? (
               <>
-                {isContractor && myContractor && (
-                  <button
-                    className="btn btn-sm"
-                    onClick={toggleAvailable}
-                    aria-label={`Toggle availability, currently ${myContractor.available ? "open" : "busy"}`}
-                    style={{
-                      background: "transparent",
-                      border: `1.5px solid ${myContractor.available ? "#34d399" : "#f87171"}`,
-                      color: myContractor.available ? "#34d399" : "#f87171",
-                    }}
-                  >
-                    ● {myContractor.available ? "Open" : "Busy"}
-                  </button>
+                <button
+                  className="btn btn-outline btn-sm"
+                  onClick={() => setUserMenuOpen(o => !o)}
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="menu"
+                  aria-label="Account menu"
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                >
+                  ☰ <span style={{ maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</span>
+                </button>
+                {userMenuOpen && (
+                  <>
+                    <div onClick={() => setUserMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} aria-hidden="true" />
+                    <div role="menu" className="user-menu">
+                      {isContractor && myContractor && (
+                        <button
+                          className="user-menu-item"
+                          role="menuitem"
+                          onClick={() => { toggleAvailable(); setUserMenuOpen(false); }}
+                        >
+                          <span style={{ color: myContractor.available ? "#34d399" : "#f87171" }}>●</span>
+                          &nbsp;{myContractor.available ? "Marked Open — tap to go Busy" : "Marked Busy — tap to go Open"}
+                        </button>
+                      )}
+                      <button
+                        className="user-menu-item"
+                        role="menuitem"
+                        onClick={() => { setCustomerProfileModal(true); setUserMenuOpen(false); }}
+                      >
+                        👤 My Profile
+                      </button>
+                      <button
+                        className="user-menu-item"
+                        role="menuitem"
+                        onClick={() => { openProfileModal(); setUserMenuOpen(false); }}
+                      >
+                        {myContractor ? "⚒ Edit Contractor Profile" : "⚒ Become a Contractor"}
+                      </button>
+                      <button
+                        className="user-menu-item"
+                        role="menuitem"
+                        onClick={() => { signOut(); setUserMenuOpen(false); }}
+                      >
+                        ↪ Sign Out
+                      </button>
+                    </div>
+                  </>
                 )}
-                <button className="btn btn-outline btn-sm" onClick={() => setCustomerProfileModal(true)} title={user.email}>
-                  My Profile
-                </button>
-                <button className="btn btn-outline btn-sm" onClick={openProfileModal}>
-                  {myContractor ? "Edit Contractor Profile" : "Become a Contractor"}
-                </button>
-                <button className="btn btn-outline btn-sm" onClick={signOut}>Sign Out</button>
               </>
             ) : (
               <>
