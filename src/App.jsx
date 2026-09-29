@@ -55,6 +55,7 @@ export default function App() {
   const [authForm, setAuthForm] = useState({ email: "", password: "" });
   const [authError, setAuthError] = useState(null);
   const [authBusy, setAuthBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminList, setAdminList] = useState([]);
   const [adminInvites, setAdminInvites] = useState([]);
@@ -72,7 +73,7 @@ export default function App() {
   const [myContractor, setMyContractor] = useState(null);
   const [profileModal, setProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({
-    name: "", trades: ["General Contractor"], location: "", hourly: "", bio: "", tags: "",
+    name: "", trades: ["General Contractor"], location: "", hourly: "", bio: "", tags: "", website: "",
     license_type: "", license_number: "", insurance_carrier: "", insurance_expires_at: "",
     license_file: null, insurance_file: null,
     license_url: "", insurance_url: "",
@@ -540,6 +541,10 @@ export default function App() {
     setAdminBusy(false);
     if (error) { notify("Verify failed: " + error.message); return; }
     setContractors(prev => prev.map(c => c.id === contractor.id ? { ...c, ...payload } : c));
+    // Email the contractor about the status change.
+    supabase.functions
+      .invoke("notify-contractor-verified", { body: { contractorId: contractor.id } })
+      .catch(err => console.error("notify contractor failed:", err));
     notify(verified ? `Verified ${contractor.name}.` : `Un-verified ${contractor.name}.`);
   }
 
@@ -696,6 +701,7 @@ function avatarInitials(name) {
         hourly: profileForm.hourly ? Number(profileForm.hourly) : null,
         bio: profileForm.bio.trim() || null,
         tags: tagsArr,
+        website: profileForm.website.trim() || null,
         avatar: avatarInitials(profileForm.name),
         available: true,
         license_type:         profileForm.license_type.trim(),
@@ -740,6 +746,7 @@ function avatarInitials(name) {
       hourly: myContractor?.hourly?.toString() ?? "",
       bio: myContractor?.bio ?? "",
       tags: (myContractor?.tags ?? []).join(", "),
+      website: myContractor?.website ?? "",
       license_type:         myContractor?.license_type ?? "",
       license_number:       myContractor?.license_number ?? "",
       license_url:          myContractor?.license_url ?? "",
@@ -1785,6 +1792,18 @@ function avatarInitials(name) {
               </button>
             </div>
             <p style={{ color: "#94a3b8", marginBottom: 16, lineHeight: 1.6 }}>{modal.bio}</p>
+            {modal.website && (
+              <div style={{ marginBottom: 16 }}>
+                <a
+                  href={/^https?:\/\//i.test(modal.website) ? modal.website : `https://${modal.website}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "#f59e0b", textDecoration: "underline", fontSize: 14, fontWeight: 600 }}
+                >
+                  🌐 {modal.website.replace(/^https?:\/\//i, "")}
+                </a>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
               {modal.tags.map(t => <span key={t} className="badge">{t}</span>)}
             </div>
@@ -1962,6 +1981,16 @@ function avatarInitials(name) {
                   onChange={e => setProfileForm(f => ({ ...f, bio: e.target.value }))}
                 />
               </div>
+              <div>
+                <label htmlFor="pf-website" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Business Website (optional)</label>
+                <input
+                  id="pf-website"
+                  type="url"
+                  placeholder="https://your-business.com"
+                  value={profileForm.website}
+                  onChange={e => setProfileForm(f => ({ ...f, website: e.target.value }))}
+                />
+              </div>
 
               <div style={{ borderTop: "1px solid #334155", paddingTop: 16, marginTop: 4 }}>
                 <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
@@ -2101,15 +2130,30 @@ function avatarInitials(name) {
               </div>
               <div>
                 <label htmlFor="auth-password" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Password</label>
-                <input
-                  id="auth-password"
-                  type="password"
-                  required
-                  minLength={6}
-                  autoComplete={authMode === "signin" ? "current-password" : "new-password"}
-                  value={authForm.password}
-                  onChange={e => setAuthForm(f => ({ ...f, password: e.target.value }))}
-                />
+                <div style={{ position: "relative" }}>
+                  <input
+                    id="auth-password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    autoComplete={authMode === "signin" ? "current-password" : "new-password"}
+                    value={authForm.password}
+                    onChange={e => setAuthForm(f => ({ ...f, password: e.target.value }))}
+                    style={{ paddingRight: 42 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(s => !s)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    style={{
+                      position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                      background: "transparent", border: "none", cursor: "pointer",
+                      color: "#94a3b8", fontSize: 18, padding: 6, lineHeight: 1,
+                    }}
+                  >
+                    {showPassword ? "🙈" : "👁"}
+                  </button>
+                </div>
               </div>
               {authError && (
                 <div style={{ color: "#f87171", fontSize: 13, background: "#3b1515", padding: "8px 12px", borderRadius: 8 }} role="alert">

@@ -32,8 +32,12 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log("notify-admin-contractor-pending invoked");
     const authHeader = req.headers.get("Authorization") || "";
-    if (!authHeader) return json({ error: "missing auth" }, 401);
+    if (!authHeader) {
+      console.log("skip: missing auth header");
+      return json({ error: "missing auth" }, 401);
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -44,7 +48,11 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !user) return json({ error: "unauthorized" }, 401);
+    if (userErr || !user) {
+      console.log("skip: unauthorized", userErr?.message);
+      return json({ error: "unauthorized" }, 401);
+    }
+    console.log("caller user id:", user.id, "email:", user.email);
 
     // Server-side, look up THIS user's contractor row and the admin list.
     const admin = createClient(supabaseUrl, serviceKey);
@@ -54,23 +62,28 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("user_id", user.id)
       .maybeSingle();
-    if (cErr) return json({ error: cErr.message }, 500);
-    if (!contractor) return json({ skipped: "no contractor row" }, 200);
-    if (contractor.verified) return json({ skipped: "already verified" }, 200);
+    if (cErr) { console.error("contractor lookup failed:", cErr.message); return json({ error: cErr.message }, 500); }
+    if (!contractor) { console.log("skip: no contractor row for user"); return json({ skipped: "no contractor row" }, 200); }
+    if (contractor.verified) { console.log("skip: already verified"); return json({ skipped: "already verified" }, 200); }
     if (!contractor.license_url || !contractor.insurance_url) {
+      console.log("skip: missing docs", { license: !!contractor.license_url, insurance: !!contractor.insurance_url });
       return json({ skipped: "missing docs" }, 200);
     }
+    console.log("contractor:", contractor.name, "trades:", contractor.trades);
 
     const { data: admins, error: aErr } = await admin.from("admins").select("email");
-    if (aErr) return json({ error: aErr.message }, 500);
+    if (aErr) { console.error("admins lookup failed:", aErr.message); return json({ error: aErr.message }, 500); }
     const recipients = (admins || []).map((a) => a.email).filter(Boolean);
+    console.log("admin recipients:", recipients);
     if (recipients.length === 0) {
       return json({ skipped: "no admins configured" }, 200);
     }
 
     const apiKey = Deno.env.get("RESEND_API_KEY");
     const from   = Deno.env.get("MAIL_FROM");
+    console.log("secrets present — key:", !!apiKey, "from:", from);
     if (!apiKey || !from) {
+      console.error("missing secrets");
       return json({ error: "RESEND_API_KEY and MAIL_FROM must be set" }, 500);
     }
 
@@ -111,28 +124,59 @@ Deno.serve(async (req) => {
       appUrl ? `Open admin dashboard: ${appUrl}` : "",
     ].filter(Boolean).join("\n");
 
-    const res = await fetch("https://api.resend.com/emails", {
+    const adminRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        from,
-        to: recipients,
-        subject,
-        html,
-        text,
-      }),
+      body: JSON.stringify({ from, to: recipients, subject, html, text }),
     });
-
-    const body = await res.text();
-    if (!res.ok) {
-      console.error("resend send failed:", res.status, body);
-      return json({ error: "resend failed", status: res.status, body }, 500);
+    const adminBody = await adminRes.text();
+    console.log("admin email send status:", adminRes.status, adminBody);
+    if (!adminRes.ok) {
+      console.error("admin resend failed:", adminRes.status, adminBody);
+      return json({ error: "resend admin failed", status: adminRes.status, body: adminBody }, 500);
     }
 
-    return json({ sent: true, recipients: recipients.length }, 200);
+    // Also confirm to the contractor that we've got their docs.
+    const contractorSubject = "TradeLinkPro — your documents are being reviewed";
+    const contractorHtml = `
+<!doctype html>
+<html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f8fafc;padding:24px;">
+  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;padding:24px;">
+    <h2 style="color:#0f172a;margin:0 0 8px;">Thanks, ${escape(contractor.name)} — we've got your docs</h2>
+    <p style="color:#475569;line-height:1.55;">
+      Your license and certificate of insurance were uploaded successfully. Our team is reviewing them now — we usually verify within a business day.
+    </p>
+    <p style="color:#475569;line-height:1.55;">
+      Once you're verified, the ✓ Verified badge appears on your profile and you'll be able to accept jobs from homeowners.
+    </p>
+    ${appUrl ? `<p><a href="${appUrl}" style="display:inline-block;background:#f59e0b;color:#0f172a;padding:12px 24px;text-decoration:none;border-radius:10px;font-weight:700;">Open TradeLinkPro</a></p>` : ""}
+    <p style="color:#94a3b8;font-size:12px;margin-top:24px;">You're receiving this because you set up a contractor profile on TradeLinkPro.</p>
+  </div>
+</body></html>`.trim();
+    const contractorText = [
+      `Hi ${contractor.name},`,
+      "",
+      "Thanks for submitting your license and certificate of insurance.",
+      "Our team is reviewing them now — usually within one business day.",
+      "",
+      "You'll get a follow-up email as soon as your profile is verified.",
+      appUrl ? `\nOpen TradeLinkPro: ${appUrl}` : "",
+    ].filter(Boolean).join("\n");
+
+    if (user.email) {
+      const contractorRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from, to: [user.email], subject: contractorSubject, html: contractorHtml, text: contractorText }),
+      });
+      const contractorBody = await contractorRes.text();
+      console.log("contractor confirmation status:", contractorRes.status, contractorBody);
+    }
+
+    return json({ sent: true, recipients: recipients.length, notifiedContractor: !!user.email }, 200);
   } catch (err) {
     console.error("notify-admin-contractor-pending error:", err);
     return json({ error: String(err) }, 500);
