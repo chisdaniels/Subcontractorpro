@@ -1677,22 +1677,56 @@ function avatarInitials(name) {
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
               Verified Contractors ({contractors.filter(c => c.verified).length})
             </h2>
-            <div style={{ display: "grid", gap: 8, marginBottom: 32 }}>
-              {contractors.filter(c => c.verified).map(c => (
-                <div key={c.id} className="card" style={{ padding: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                  <div>
-                    <span style={{ fontWeight: 600 }}>{c.name}</span>
-                    <span style={{ color: "#64748b", fontSize: 13, marginLeft: 8 }}>{contractorTrades(c).join(" · ")}</span>
-                  </div>
-                  <button className="btn btn-outline btn-sm" onClick={() => adminSetVerified(c, false)} disabled={adminBusy}>
-                    Un-verify
-                  </button>
-                </div>
-              ))}
-              {contractors.filter(c => c.verified).length === 0 && (
-                <div style={{ color: "#475569", padding: 12 }}>None yet.</div>
-              )}
-            </div>
+            {contractors.filter(c => c.verified).length === 0 ? (
+              <div style={{ color: "#475569", padding: 12, marginBottom: 32 }}>None yet.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 12, marginBottom: 32 }}>
+                {contractors.filter(c => c.verified).map(c => (
+                  <details key={c.id} className="card" style={{ padding: 0 }}>
+                    <summary style={{ padding: 14, cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+                        <Avatar initials={c.avatar} size={36} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600 }}>{c.name} <span className="badge avail" style={{ marginLeft: 6 }}>✓ Verified</span></div>
+                          <div style={{ fontSize: 12, color: "#94a3b8" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#64748b" }}>tap to expand ▾</div>
+                    </summary>
+                    <div style={{ padding: "0 16px 16px" }}>
+                      <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, fontSize: 13, lineHeight: 1.75, marginBottom: 12 }}>
+                        <div><strong>Trades:</strong> {contractorTrades(c).join(", ")}</div>
+                        <div><strong>Location:</strong> {c.location}</div>
+                        {c.hourly != null && <div><strong>Hourly:</strong> ${c.hourly}/hr</div>}
+                        {c.website && <div><strong>Website:</strong> <a href={/^https?:\/\//i.test(c.website) ? c.website : `https://${c.website}`} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>{c.website.replace(/^https?:\/\//i, "")}</a></div>}
+                        {c.bio && <div style={{ marginTop: 6 }}><strong>Bio:</strong> {c.bio}</div>}
+                      </div>
+                      <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, fontSize: 13, lineHeight: 1.75, marginBottom: 12 }}>
+                        <div>
+                          <strong>{c.license_type || "License"}</strong>
+                          {c.license_number ? ` · #${c.license_number}` : ""}
+                          {c.license_url && <> · <a href={c.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view license</a></>}
+                        </div>
+                        <div>
+                          <strong>Insurance</strong>
+                          {c.insurance_carrier ? ` · ${c.insurance_carrier}` : ""}
+                          {c.insurance_expires_at ? ` · expires ${c.insurance_expires_at}` : ""}
+                          {c.insurance_url && <> · <a href={c.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view COI</a></>}
+                        </div>
+                        {c.verified_at && (
+                          <div style={{ marginTop: 4, color: "#64748b", fontSize: 12 }}>
+                            Verified {new Date(c.verified_at).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                      <button className="btn btn-outline btn-sm" onClick={() => adminSetVerified(c, false)} disabled={adminBusy}>
+                        Un-verify
+                      </button>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
 
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Trade Types ({tradeTypes.length})</h2>
             <form onSubmit={adminAddTrade} className="card" style={{ padding: 14, marginBottom: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
