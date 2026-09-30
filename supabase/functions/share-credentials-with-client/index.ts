@@ -71,24 +71,26 @@ Deno.serve(async (req) => {
     const tradeLicenseEntries = contractor.trade_licenses && Object.keys(contractor.trade_licenses).length > 0
       ? Object.entries(contractor.trade_licenses).map(([trade, tl]: [string, any]) => ({
           trade,
+          key:    `trade_license:${trade}`,
           type:   tl?.type   || "Trade License",
           number: tl?.number || "",
           url:    tl?.url    || "",
         }))
       : (contractor.license_url ? [{
           trade:  contractor.trade || "",
+          key:    "license",
           type:   contractor.license_type   || "Trade License",
           number: contractor.license_number || "",
           url:    contractor.license_url,
         }] : []);
     const tradeLicensesHtml = tradeLicenseEntries.map((e: any) => `
       <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
-        <strong>${escape(e.type)}</strong>${e.trade ? ` <span style="color:#065f46;">· ${escape(e.trade)}</span>` : ""}${e.number ? " &middot; #" + escape(e.number) : ""}
+        <strong>${escape(e.type)}</strong>${e.trade ? ` <span style="color:#065f46;">· ${escape(e.trade)}</span>` : ""}${e.number ? " &middot; #" + escape(e.number) : ""}${statusHtml(contractor, e.key, e.url)}
       </td></tr>
       ${e.url ? `<tr><td style="padding:0 0 6px;"><a href="${e.url}" style="color:#047857;font-size:14px;font-weight:600;">View ${escape(e.type)}</a></td></tr>` : ""}
     `).join("");
     const tradeLicensesText = tradeLicenseEntries.map((e: any) =>
-      `${e.type}${e.trade ? ` (${e.trade})` : ""}${e.number ? " #" + e.number : ""}${e.url ? "\n  Doc: " + e.url : ""}`
+      `${e.type}${e.trade ? ` (${e.trade})` : ""}${e.number ? " #" + e.number : ""}${statusText(contractor, e.key, e.url)}${e.url ? "\n  Doc: " + e.url : ""}`
     ).join("\n");
 
     const subject = `${senderName} — License &amp; insurance for your review`;
@@ -103,7 +105,7 @@ Deno.serve(async (req) => {
       <tr><td style="padding:24px 24px 12px;">
         <h1 style="color:#0f172a;font-size:22px;margin:0 0 8px;">${escape(senderName)}'s credentials${clientName ? `, for ${escape(clientName)}` : ""}</h1>
         <p style="color:#475569;font-size:15px;line-height:1.55;margin:0 0 16px;">
-          ${escape(senderName)} shared their verified license and certificate of insurance with you through Subcontractor Pros.
+          ${escape(senderName)} shared their license and insurance documents with you through Subcontractor Pros. Each document shows whether our team has reviewed it.
         </p>
         ${message ? `<p style="color:#0f172a;background:#f1f5f9;padding:12px 14px;border-radius:8px;font-size:14px;line-height:1.55;margin:0 0 16px;white-space:pre-wrap;">${escape(message)}</p>` : ""}
       </td></tr>
@@ -111,21 +113,21 @@ Deno.serve(async (req) => {
       <tr><td style="padding:0 24px 16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ecfdf5;border:2px solid #10b981;border-radius:10px;">
           <tr><td style="padding:16px;">
-            <div style="color:#065f46;font-weight:700;font-size:13px;letter-spacing:1px;margin-bottom:10px;">VERIFIED CREDENTIALS</div>
+            <div style="color:#065f46;font-weight:700;font-size:13px;letter-spacing:1px;margin-bottom:10px;">CREDENTIALS ON FILE</div>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
               ${contractor.business_license_url ? `
               <tr><td style="padding:4px 0;color:#0f172a;font-size:14px;">
-                <strong>Business License</strong>${contractor.business_license_number ? " &middot; #" + escape(contractor.business_license_number) : ""}
+                <strong>Business License</strong>${contractor.business_license_number ? " &middot; #" + escape(contractor.business_license_number) : ""}${statusHtml(contractor, "business_license", contractor.business_license_url)}
               </td></tr>
               <tr><td style="padding:0 0 6px;"><a href="${contractor.business_license_url}" style="color:#047857;font-size:14px;font-weight:600;">View business license</a></td></tr>` : ""}
               ${tradeLicensesHtml}
               <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
-                <strong>Insurance</strong>${contractor.insurance_carrier ? " &middot; " + escape(contractor.insurance_carrier) : ""}${contractor.insurance_expires_at ? " &middot; expires " + escape(contractor.insurance_expires_at) : ""}
+                <strong>Insurance</strong>${contractor.insurance_carrier ? " &middot; " + escape(contractor.insurance_carrier) : ""}${contractor.insurance_expires_at ? " &middot; expires " + escape(contractor.insurance_expires_at) : ""}${statusHtml(contractor, "insurance", contractor.insurance_url, contractor.insurance_expires_at)}
               </td></tr>
               <tr><td style="padding:0 0 6px;"><a href="${contractor.insurance_url}" style="color:#047857;font-size:14px;font-weight:600;">View certificate of insurance</a></td></tr>
               ${contractor.bond_url ? `
               <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
-                <strong>Surety Bond</strong>${contractor.bond_amount ? " &middot; $" + Number(contractor.bond_amount).toLocaleString() : ""}
+                <strong>Surety Bond</strong>${contractor.bond_amount ? " &middot; $" + Number(contractor.bond_amount).toLocaleString() : ""}${statusHtml(contractor, "bond", contractor.bond_url)}
               </td></tr>
               <tr><td style="padding:0;"><a href="${contractor.bond_url}" style="color:#047857;font-size:14px;font-weight:600;">View bond certificate</a></td></tr>` : ""}
             </table>
@@ -171,14 +173,14 @@ Deno.serve(async (req) => {
       "",
       message ? `Their note: ${message}` : "",
       message ? "" : "",
-      "VERIFIED CREDENTIALS",
+      "CREDENTIALS ON FILE",
       contractor.business_license_url
-        ? `Business License${contractor.business_license_number ? " #" + contractor.business_license_number : ""}\n  Doc: ${contractor.business_license_url}`
+        ? `Business License${contractor.business_license_number ? " #" + contractor.business_license_number : ""}${statusText(contractor, "business_license", contractor.business_license_url)}\n  Doc: ${contractor.business_license_url}`
         : "",
       tradeLicensesText,
-      `Insurance${contractor.insurance_carrier ? " · " + contractor.insurance_carrier : ""}${contractor.insurance_expires_at ? " (expires " + contractor.insurance_expires_at + ")" : ""}\n  COI: ${contractor.insurance_url}`,
+      `Insurance${contractor.insurance_carrier ? " · " + contractor.insurance_carrier : ""}${contractor.insurance_expires_at ? " (expires " + contractor.insurance_expires_at + ")" : ""}${statusText(contractor, "insurance", contractor.insurance_url, contractor.insurance_expires_at)}\n  COI: ${contractor.insurance_url}`,
       contractor.bond_url
-        ? `Surety Bond${contractor.bond_amount ? " · $" + Number(contractor.bond_amount).toLocaleString() : ""}\n  Doc: ${contractor.bond_url}`
+        ? `Surety Bond${contractor.bond_amount ? " · $" + Number(contractor.bond_amount).toLocaleString() : ""}${statusText(contractor, "bond", contractor.bond_url)}\n  Doc: ${contractor.bond_url}`
         : "",
       "",
       `About ${senderName}: ${contractorTrades}${contractor.location ? " · " + contractor.location : ""}`,
@@ -225,4 +227,31 @@ function json(body: unknown, status = 200) {
 
 function escape(s: string) {
   return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
+
+// A review only counts for the exact file that was reviewed (doc_url), and
+// an expired credential never reads as verified.
+function credStatus(c: any, key: string, docUrl?: string | null, fallbackExpiry?: string | null) {
+  if (!docUrl) return "";
+  const r = (c.credential_reviews || {})[key];
+  if (!r || r.doc_url !== docUrl || r.status === "pending") return "pending";
+  if (r.status === "rejected") return "rejected";
+  const exp = r.expires_on || fallbackExpiry;
+  if (r.status === "verified") return exp && exp < new Date().toISOString().slice(0, 10) ? "expired" : "verified";
+  return "pending";
+}
+const STATUS_HTML: Record<string, string> = {
+  verified: ' <span style="color:#047857;font-weight:700;">&middot; &#10003; Verified by Subcontractor Pros</span>',
+  pending:  ' <span style="color:#b45309;">&middot; Not yet reviewed</span>',
+  expired:  ' <span style="color:#b91c1c;font-weight:700;">&middot; Expired</span>',
+  rejected: ' <span style="color:#b91c1c;font-weight:700;">&middot; Did not pass review</span>',
+};
+const STATUS_TEXT: Record<string, string> = {
+  verified: " [Verified by Subcontractor Pros]", pending: " [Not yet reviewed]", expired: " [Expired]", rejected: " [Did not pass review]",
+};
+function statusHtml(c: any, key: string, docUrl?: string | null, fallbackExpiry?: string | null) {
+  return STATUS_HTML[credStatus(c, key, docUrl, fallbackExpiry)] || "";
+}
+function statusText(c: any, key: string, docUrl?: string | null, fallbackExpiry?: string | null) {
+  return STATUS_TEXT[credStatus(c, key, docUrl, fallbackExpiry)] || "";
 }

@@ -65,10 +65,15 @@ Deno.serve(async (req) => {
     if (cErr) { console.error("contractor lookup failed:", cErr.message); return json({ error: cErr.message }, 500); }
     if (!contractor) { console.log("skip: no contractor row for user"); return json({ skipped: "no contractor row" }, 200); }
     if (contractor.verified) { console.log("skip: already verified"); return json({ skipped: "already verified" }, 200); }
-    if (!contractor.license_url || !contractor.insurance_url) {
-      console.log("skip: missing docs", { license: !!contractor.license_url, insurance: !!contractor.insurance_url });
+    // Business license + insurance are required for every provider; a trade
+    // license only exists for services whose document policy asks for one.
+    const licenseUrl = contractor.business_license_url || contractor.license_url;
+    if (!licenseUrl || !contractor.insurance_url) {
+      console.log("skip: missing docs", { license: !!licenseUrl, insurance: !!contractor.insurance_url });
       return json({ skipped: "missing docs" }, 200);
     }
+    const services = Array.isArray(contractor.trades) && contractor.trades.length ? contractor.trades.join(", ") : (contractor.trade || "");
+    const tradeLicenses = Object.entries(contractor.trade_licenses || {}) as [string, { type?: string; number?: string; url?: string }][];
     console.log("contractor:", contractor.name, "trades:", contractor.trades);
 
     const { data: admins, error: aErr } = await admin.from("admins").select("email");
@@ -99,25 +104,23 @@ Deno.serve(async (req) => {
       <strong>${escape(contractor.name)}</strong> just uploaded their credentials and needs an admin to verify.
     </p>
     <table style="border-collapse:collapse;margin:0 0 16px;font-size:14px;color:#0f172a;">
-      <tr><td style="padding:4px 12px 4px 0;color:#64748b;">Trade</td><td>${escape(contractor.trade)}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#64748b;">Services</td><td>${escape(services)}</td></tr>
       <tr><td style="padding:4px 12px 4px 0;color:#64748b;">Location</td><td>${escape(contractor.location)}</td></tr>
-      <tr><td style="padding:4px 12px 4px 0;color:#64748b;">License</td><td>${escape(contractor.license_type || "")} ${contractor.license_number ? "#" + escape(contractor.license_number) : ""}</td></tr>
-      <tr><td style="padding:4px 12px 4px 0;color:#64748b;">Insurance</td><td>${escape(contractor.insurance_carrier || "")} (expires ${escape(contractor.insurance_expires_at || "")})</td></tr>
+      ${contractor.business_license_url ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b;">Business license</td><td>${contractor.business_license_number ? "#" + escape(contractor.business_license_number) : ""} <a href="${contractor.business_license_url}" style="color:#0369a1;">view</a></td></tr>` : ""}
+      ${tradeLicenses.map(([t, tl]) => `<tr><td style="padding:4px 12px 4px 0;color:#64748b;">${escape(tl.type || "Trade license")}</td><td>${escape(t)}${tl.number ? " #" + escape(tl.number) : ""}${tl.url ? ` <a href="${tl.url}" style="color:#0369a1;">view</a>` : ""}</td></tr>`).join("")}
+      <tr><td style="padding:4px 12px 4px 0;color:#64748b;">Insurance</td><td>${escape(contractor.insurance_carrier || "")} (expires ${escape(contractor.insurance_expires_at || "")}) <a href="${contractor.insurance_url}" style="color:#0369a1;">view</a></td></tr>
+      ${contractor.bond_url ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b;">Bond</td><td><a href="${contractor.bond_url}" style="color:#0369a1;">view</a></td></tr>` : ""}
     </table>
-    <p style="margin:0 0 20px;">
-      <a href="${contractor.license_url}" style="color:#0369a1;margin-right:16px;">View license →</a>
-      <a href="${contractor.insurance_url}" style="color:#0369a1;">View COI →</a>
-    </p>
     ${appUrl ? `<p><a href="${appUrl}" style="display:inline-block;background:#f59e0b;color:#0f172a;padding:12px 24px;text-decoration:none;border-radius:10px;font-weight:700;">Open Admin Dashboard</a></p>` : ""}
     <p style="color:#94a3b8;font-size:12px;margin-top:24px;">You're receiving this because you're an admin on Subcontractor Pros.</p>
   </div>
 </body></html>`.trim();
 
     const text = [
-      `${contractor.name} (${contractor.trade}) uploaded credentials and needs verification.`,
+      `${contractor.name} (${services}) uploaded credentials and needs verification.`,
       "",
-      `License:     ${contractor.license_type || ""} ${contractor.license_number ? "#" + contractor.license_number : ""}`,
-      `License doc: ${contractor.license_url}`,
+      contractor.business_license_url ? `Business license: ${contractor.business_license_number ? "#" + contractor.business_license_number + " " : ""}${contractor.business_license_url}` : "",
+      ...tradeLicenses.map(([t, tl]) => `${tl.type || "Trade license"} (${t}): ${tl.number ? "#" + tl.number + " " : ""}${tl.url || ""}`),
       `Insurance:   ${contractor.insurance_carrier || ""}${contractor.insurance_expires_at ? ` (expires ${contractor.insurance_expires_at})` : ""}`,
       `COI:         ${contractor.insurance_url}`,
       "",

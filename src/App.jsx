@@ -1,13 +1,16 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "./lib/supabase";
+import { ServicePicker, ServiceSelect, serviceFilterMatches } from "./ServicePicker";
+import AdminServices from "./AdminServices";
+import { CredentialList, CredentialReviewPanel, VerifiedCredentialBadges, VERIFIED_PRO_MEANING } from "./credentials";
+import {
+  REQUIREMENTS_FALLBACK, buildCatalog, contractorCredentials, describeRequirement, resolveRequirements,
+  searchCatalog, verifiedCredentialKinds,
+} from "./services";
 
-const FALLBACK_TRADES = ["General Contractor", "Plumber", "Electrician", "Roofer", "Carpenter", "Mason", "Flooring Installer", "Cabinets", "Countertops", "Landscaping", "Dirt Work", "Painting", "Sheetrock"];
-
-// Trade-specific documentation rules now live in the trade_types table
-// (columns trade_license_label + requires_bond). The frontend loads them
-// into `tradeReqMap` at boot; the helper `makeRequirementsFor(map)` builds
-// a resolver bound to that map. State laws vary — admins can adjust each
-// trade's requirements from the Admin dashboard without a code deploy.
+// Platform document policy (trade_types.trade_license_label + requires_bond):
+// what SubcontractorPros asks providers of each service to upload. It is not
+// a statement of legal requirements — those live in requirement_rules.
 function makeRequirementsFor(reqMap) {
   return function requirementsFor(trades) {
     const list = Array.isArray(trades) ? trades : [];
@@ -149,7 +152,9 @@ export default function App() {
     return pathToTab(window.location.pathname, window.location.hash);
   });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [trade, setTrade] = useState("All Trades");
+  const [serviceFilter, setServiceFilter] = useState(""); // "" | "group:<slug>" | service name
+  const [credFilter, setCredFilter] = useState("");
+  const [onlyMyServices, setOnlyMyServices] = useState(false);
   const [search, setSearch] = useState("");
   const [contractors, setContractors] = useState([]);
   const [messages, setMessages] = useState({});
@@ -182,11 +187,7 @@ export default function App() {
   const [adminInvites, setAdminInvites] = useState([]);
   const [adminInviteInput, setAdminInviteInput] = useState("");
   const [adminBusy, setAdminBusy] = useState(false);
-  const [tradeTypes, setTradeTypes] = useState(FALLBACK_TRADES);
-  const [tradeReqMap, setTradeReqMap] = useState({});
-  const [newTradeInput, setNewTradeInput] = useState("");
-  const [tradeEditingName, setTradeEditingName] = useState(null); // trade currently being edited
-  const [tradeEditForm, setTradeEditForm] = useState({ name: "", license_label: "", requires_bond: false });
+  const [catalogRaw, setCatalogRaw] = useState({ groups: [], services: [], aliases: [], rules: [] });
   const [customerProfileModal, setCustomerProfileModal] = useState(false);
   const [customerProfile, setCustomerProfile] = useState({ homeowner_name: "", homeowner_phone: "" });
   const [jobEditModal, setJobEditModal] = useState(null);
@@ -214,7 +215,7 @@ export default function App() {
   const [myContractor, setMyContractor] = useState(null);
   const [profileModal, setProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({
-    name: "", trades: ["General Contractor"], location: "", hourly: "", bio: "", tags: "", website: "",
+    name: "", trades: [], location: "", hourly: "", bio: "", tags: "", website: "",
     business_license_number: "", business_license_url: "", business_license_file: null,
     // trade_licenses is keyed by trade name (e.g. "Electrician") and holds
     // { number: string, url: string, file: File | null } for each licensed trade the contractor picked.
@@ -314,30 +315,34 @@ export default function App() {
     notify("Use your browser's menu to add this app to your device.");
   }
 
-  useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase
-        .from("trade_types")
-        .select("name, trade_license_label, requires_bond")
-        .order("name");
-      if (error) { console.error("trade_types load failed:", error); return; }
-      if (data && data.length) {
-        setTradeTypes(data.map(r => r.name));
-        const map = {};
-        for (const r of data) {
-          map[r.name] = {
-            tradeLicense: r.trade_license_label || null,
-            bonded: !!r.requires_bond,
-          };
-        }
-        setTradeReqMap(map);
-      }
-    })();
-  }, []);
+  async function loadCatalog() {
+    const [g, s, a, r] = await Promise.all([
+      supabase.from("service_groups").select("*"),
+      supabase.from("trade_types").select("*"),
+      supabase.from("trade_aliases").select("alias, trade_name"),
+      supabase.from("requirement_rules").select("*").order("id"),
+    ]);
+    for (const res of [g, s, a, r]) if (res.error) console.error("catalog load failed:", res.error);
+    setCatalogRaw({ groups: g.data || [], services: s.data || [], aliases: a.data || [], rules: r.data || [] });
+  }
 
-  const TRADES = ["All Trades", ...tradeTypes];
+  useEffect(() => { loadCatalog(); }, []);
+
+  const catalog = useMemo(
+    () => buildCatalog(catalogRaw.services, catalogRaw.groups, catalogRaw.aliases),
+    [catalogRaw]
+  );
+  const tradeReqMap = useMemo(() => Object.fromEntries(catalogRaw.services.map(r => [
+    r.name, { tradeLicense: r.trade_license_label || null, bonded: !!r.requires_bond },
+  ])), [catalogRaw.services]);
   const requirementsFor = makeRequirementsFor(tradeReqMap);
-  const TRADE_REQUIREMENTS = tradeReqMap; // legacy alias kept for existing render blocks
+  const TRADE_REQUIREMENTS = tradeReqMap;
+
+  function licensingSummary(serviceName, location) {
+    const { items, stateCode } = resolveRequirements(catalogRaw.rules, serviceName, location);
+    if (!items.length) return REQUIREMENTS_FALLBACK;
+    return `${stateCode ? `${stateCode}: ` : ""}${items.map(describeRequirement).join(" · ")}`;
+  }
 
   useEffect(() => {
     if (!user) { setIsAdmin(false); setAdminChecked(authState !== "loading"); return; }
@@ -534,17 +539,29 @@ export default function App() {
     return Array.isArray(c?.trades) && c.trades.length ? c.trades : c?.trade ? [c.trade] : [];
   }
 
+  const searchServiceHits = useMemo(
+    () => new Set(searchCatalog(catalog, search, { includeInactive: true }).map(r => r.service.name)),
+    [catalog, search]
+  );
   const filtered = contractors.filter(c => {
     if (c.deactivated_at) return false; // hidden from the public board
     const trades = contractorTrades(c);
-    const matchTrade = trade === "All Trades" || trades.includes(trade);
-    const q = search.toLowerCase();
-    const matchSearch =
-      c.name.toLowerCase().includes(q) ||
-      trades.some(t => t.toLowerCase().includes(q)) ||
-      (c.location || "").toLowerCase().includes(q);
-    return matchTrade && matchSearch;
+    if (!serviceFilterMatches(catalog, trades, serviceFilter)) return false;
+    if (credFilter && !verifiedCredentialKinds(c).has(credFilter)) return false;
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return c.name.toLowerCase().includes(q) ||
+      (c.location || "").toLowerCase().includes(q) ||
+      (c.tags || []).some(t => t.toLowerCase().includes(q)) ||
+      trades.some(t => t.toLowerCase().includes(q) || searchServiceHits.has(t));
   });
+
+  const myServiceNames = contractorTrades(myContractor);
+  const openJobsShown = jobs.filter(j =>
+    !j.deleted_at && !j.accepted_by &&
+    serviceFilterMatches(catalog, [j.trade], serviceFilter) &&
+    (!onlyMyServices || myServiceNames.includes(j.trade))
+  );
 
   function notify(msg) {
     setNotification(msg);
@@ -659,7 +676,7 @@ export default function App() {
 
   async function postJob() {
     if (!jobForm.title || !jobForm.location || !jobForm.homeowner_name || !jobForm.homeowner_email) return;
-    if (!jobForm.trades.length) { notify("Pick at least one trade you need."); return; }
+    if (!jobForm.trades.length) { notify("Pick at least one service you need."); return; }
     const groupId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
     const rows = jobForm.trades.map(t => ({
       title: jobForm.title,
@@ -687,7 +704,7 @@ export default function App() {
     setJobForm({ title: "", trades: [], location: "", budget: "", desc: "", homeowner_name: "", homeowner_email: "", homeowner_phone: "" });
     await loadJobs();
     notify(jobForm.trades.length > 1
-      ? `Job posted with ${jobForm.trades.length} trades. Each stays open until a matching contractor accepts.`
+      ? `Job posted with ${jobForm.trades.length} services. Each stays open until a matching pro accepts.`
       : "Job posted! Contractors will reach out shortly.");
   }
 
@@ -1035,100 +1052,21 @@ export default function App() {
     setAdminInvites(prev => prev.filter(i => i.email !== email));
   }
 
-  async function adminAddTrade(e) {
-    e.preventDefault();
-    const name = newTradeInput.trim();
-    if (!name) return;
-    setAdminBusy(true);
-    const { error } = await supabase.from("trade_types").insert({
-      name,
-      trade_license_label: null,
-      requires_bond: false,
-    });
-    setAdminBusy(false);
-    if (error) { notify("Add trade failed: " + error.message); return; }
-    setTradeTypes(prev => [...new Set([...prev, name])].sort());
-    setTradeReqMap(prev => ({ ...prev, [name]: { tradeLicense: null, bonded: false } }));
-    setNewTradeInput("");
-    notify(`Added ${name}. Use Edit to set license and bond requirements.`);
-  }
-
-  function openTradeEdit(name) {
-    const req = tradeReqMap[name] || {};
-    setTradeEditForm({
-      name,
-      license_label: req.tradeLicense || "",
-      requires_bond: !!req.bonded,
-    });
-    setTradeEditingName(name);
-  }
-
-  async function submitTradeEdit(e) {
-    e.preventDefault();
-    if (!tradeEditingName) return;
-    setAdminBusy(true);
-    try {
-      const originalName = tradeEditingName;
-      const newName = tradeEditForm.name.trim();
-      if (!newName) throw new Error("Trade name is required.");
-
-      // Rename cascade if the name changed.
-      if (newName !== originalName) {
-        const { error: rErr } = await supabase.rpc("rename_trade", {
-          old_name: originalName,
-          new_name: newName,
-        });
-        if (rErr) throw new Error("Rename failed: " + rErr.message);
-      }
-
-      // Push the license label + bond changes.
-      const { error: uErr } = await supabase
-        .from("trade_types")
-        .update({
-          trade_license_label: tradeEditForm.license_label.trim() || null,
-          requires_bond: !!tradeEditForm.requires_bond,
-        })
-        .eq("name", newName);
-      if (uErr) throw new Error("Save failed: " + uErr.message);
-
-      // Refresh local state.
-      setTradeTypes(prev => {
-        const set = new Set(prev.filter(t => t !== originalName));
-        set.add(newName);
-        return Array.from(set).sort();
-      });
-      setTradeReqMap(prev => {
-        const next = { ...prev };
-        if (newName !== originalName) delete next[originalName];
-        next[newName] = {
-          tradeLicense: tradeEditForm.license_label.trim() || null,
-          bonded: !!tradeEditForm.requires_bond,
-        };
-        return next;
-      });
-      // If a contractor references the renamed trade in state, keep them consistent.
-      if (newName !== originalName) {
-        setContractors(prev => prev.map(c => {
-          const trades = Array.isArray(c.trades) ? c.trades.map(t => t === originalName ? newName : t) : c.trades;
-          const trade = c.trade === originalName ? newName : c.trade;
-          return { ...c, trades, trade };
-        }));
-      }
-      setTradeEditingName(null);
-      notify(`Updated ${newName}.`);
-    } catch (err) {
-      notify(err.message);
-    } finally {
-      setAdminBusy(false);
-    }
-  }
-
-  async function adminRemoveTrade(name) {
-    if (!confirm(`Remove "${name}" from the trade list? Existing contractors keep it on their profile, but no one can pick it for new profiles.`)) return;
-    const { error } = await supabase.from("trade_types").delete().eq("name", name);
-    if (error) { notify("Remove trade failed: " + error.message); return; }
-    setTradeTypes(prev => prev.filter(t => t !== name));
-    notify(`Removed ${name}.`);
+  async function adminSaveCredentialReview(contractor, key, review) {
+    const next = {
+      ...(contractor.credential_reviews || {}),
+      [key]: { ...review, reviewed_at: new Date().toISOString(), reviewed_by: user.id },
+    };
+    const { data, error } = await supabase
+      .from("contractors")
+      .update({ credential_reviews: next })
+      .eq("id", contractor.id)
+      .select()
+      .single();
+    if (error) { notify("Review save failed: " + error.message); return false; }
+    setContractors(prev => prev.map(c => c.id === contractor.id ? data : c));
+    notify(`Saved review for ${contractor.name}.`);
+    return true;
   }
 
   async function adminRemoveAdmin(row) {
@@ -1209,7 +1147,7 @@ function avatarInitials(name) {
       const tagsArr = profileForm.tags.split(",").map(t => t.trim()).filter(Boolean);
 
       if (!Array.isArray(profileForm.trades) || profileForm.trades.length === 0) {
-        throw new Error("Pick at least one trade.");
+        throw new Error("Pick at least one service.");
       }
       const req = requirementsFor(profileForm.trades);
 
@@ -1329,7 +1267,7 @@ function avatarInitials(name) {
       ? myContractor.trades
       : myContractor?.trade
         ? [myContractor.trade]
-        : ["General Contractor"];
+        : [];
     setProfileForm({
       name: myContractor?.name ?? "",
       trades: existingTrades,
@@ -1361,7 +1299,7 @@ function avatarInitials(name) {
   }
 
   function hasCredentialsOnFile(c) {
-    return !!(c && c.license_url && c.insurance_url);
+    return !!(c && (c.business_license_url || c.license_url) && c.insurance_url);
   }
   function isContractorVerified(c) {
     return !!(c && c.verified === true && hasCredentialsOnFile(c));
@@ -1370,13 +1308,13 @@ function avatarInitials(name) {
   async function acceptJob(jobId) {
     if (!user) return;
     if (!isContractorVerified(myContractor)) {
-      notify("Upload your license + insurance to accept jobs.");
+      notify("Your profile must be verified before you can accept jobs.");
       openProfileModal();
       return;
     }
     const jobToAccept = jobs.find(j => j.id === jobId);
     if (jobToAccept && !contractorTrades(myContractor).includes(jobToAccept.trade)) {
-      notify(`This job needs a ${jobToAccept.trade}. Add that trade to your profile to accept it.`);
+      notify(`This job needs ${jobToAccept.trade}. Add that service to your profile to accept it.`);
       return;
     }
     const { data, error } = await supabase
@@ -1533,6 +1471,28 @@ function avatarInitials(name) {
         .modal input, .modal textarea, .modal select { max-width: 100%; min-width: 0; }
         .modal input[type="date"] { min-width: 0; }
         .job-grid > * { min-width: 0; }
+        .field-label { font-size: 12px; color: #94a3b8; margin-bottom: 4px; display: block; }
+        .svc-picker { display: flex; flex-direction: column; gap: 8px; }
+        .svc-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+        .svc-chip { display: inline-flex; align-items: center; gap: 4px; background: rgba(245,158,11,0.12); border: 1px solid #f59e0b; color: #f1f5f9; border-radius: 99px; padding: 3px 4px 3px 12px; font-size: 13px; max-width: 100%; flex-wrap: wrap; }
+        .svc-chip.primary { background: #f59e0b; color: #0f172a; font-weight: 600; }
+        .svc-chip-tag { font-size: 11px; font-weight: 800; margin-right: 2px; }
+        .svc-chip-btn { background: transparent; border: none; color: inherit; cursor: pointer; font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 99px; opacity: 0.8; }
+        .svc-chip-btn:hover { opacity: 1; background: rgba(15,23,42,0.3); }
+        .svc-chip-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 1px; }
+        .svc-list { max-height: 340px; overflow-y: auto; border: 1px solid #334155; border-radius: 10px; background: #0f172a; }
+        .svc-results { display: grid; gap: 6px; padding: 8px; }
+        .svc-group + .svc-group { border-top: 1px solid #1e293b; }
+        .svc-group-btn { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; background: transparent; border: none; color: #f1f5f9; font: inherit; font-size: 14px; font-weight: 600; padding: 12px; cursor: pointer; text-align: left; }
+        .svc-group-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; border-radius: 8px; }
+        .svc-group-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0 10px 12px; }
+        .svc-option { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; cursor: pointer; font-size: 13px; }
+        .svc-option.checked { border-color: #f59e0b; background: rgba(245,158,11,0.12); }
+        .svc-option input { width: auto; accent-color: #f59e0b; margin-top: 2px; flex-shrink: 0; }
+        .svc-option:focus-within { outline: 2px solid #f59e0b; outline-offset: 1px; }
+        .admin-svc-row { display: flex; padding: 10px 12px; background: #0f172a; border-radius: 8px; font-size: 13px; gap: 10px; }
+        .filter-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filter-bar select { width: auto; min-width: 180px; max-width: 100%; }
         .contractor-card:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; border-radius: 16px; }
         .star-btn { background: none; border: none; cursor: pointer; padding: 2px; font-size: 24px; line-height: 1; transition: transform 0.1s; }
         .star-btn:hover { transform: scale(1.15); }
@@ -1546,6 +1506,8 @@ function avatarInitials(name) {
           .messages-layout.has-active .messages-sidebar-list { display: none !important; }
           .messages-layout:not(.has-active) .messages-chat { display: none !important; }
           .job-grid { grid-template-columns: 1fr !important; }
+          .svc-group-body { grid-template-columns: 1fr; }
+          .filter-bar select { flex: 1 1 100%; }
           .modal { padding: 20px !important; border-radius: 16px !important; }
           .modal-bg { padding: 12px !important; }
           .modal input[type="date"] { max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; -webkit-appearance: none !important; appearance: none !important; }
@@ -1785,8 +1747,8 @@ function avatarInitials(name) {
         {isContractor && !myContractor?.deactivated_at && !hasCredentialsOnFile(myContractor) && (
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f87171" }}>
             <div>
-              <div style={{ fontWeight: 700, marginBottom: 2 }}>Upload your license &amp; insurance</div>
-              <div style={{ fontSize: 13, color: "#94a3b8" }}>Required to accept jobs and to show as verified in search.</div>
+              <div style={{ fontWeight: 700, marginBottom: 2 }}>Upload your business license &amp; insurance</div>
+              <div style={{ fontSize: 13, color: "#94a3b8" }}>Required before our team can review your profile and you can accept jobs.</div>
             </div>
             <button className="btn btn-gold btn-sm" onClick={openProfileModal}>Add Documents</button>
           </div>
@@ -1796,7 +1758,7 @@ function avatarInitials(name) {
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#fbbf24" }}>
             <div>
               <div style={{ fontWeight: 700, marginBottom: 2 }}>⏳ Documents under review</div>
-              <div style={{ fontSize: 13, color: "#94a3b8" }}>Our team will verify your license &amp; insurance shortly. You'll be able to accept jobs once approved.</div>
+              <div style={{ fontSize: 13, color: "#94a3b8" }}>Our team is reviewing your documents. You'll be able to accept jobs once your profile is approved.</div>
             </div>
             <button className="btn btn-outline btn-sm" onClick={openProfileModal}>Update Documents</button>
           </div>
@@ -1807,7 +1769,7 @@ function avatarInitials(name) {
         {tab === "search" && (
           <section aria-labelledby="search-heading">
             <h1 id="search-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>FIND A CONTRACTOR</h1>
-            <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Browse verified construction & home service pros</p>
+            <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Construction, cleaning, maintenance, and specialty service pros</p>
 
             {!user && (
               <div className="card" style={{ padding: 18, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", borderColor: "#f59e0b" }}>
@@ -1826,23 +1788,25 @@ function avatarInitials(name) {
                 </button>
               </div>
             )}
-            <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-              <label htmlFor="contractor-search" className="sr-only">Search contractors</label>
+            <div className="filter-bar">
+              <label htmlFor="contractor-search" className="sr-only">Search pros</label>
               <input
                 id="contractor-search"
-                placeholder="Search by name, trade, or city..."
+                type="search"
+                placeholder="Search by name, service, or city — e.g. drywall, janitorial"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{ flex: 1, minWidth: 200 }}
               />
-              <label htmlFor="trade-filter" className="sr-only">Filter by trade</label>
-              <select
-                id="trade-filter"
-                value={trade}
-                onChange={e => setTrade(e.target.value)}
-                style={{ width: "auto", minWidth: 160 }}
-              >
-                {TRADES.map(t => <option key={t}>{t}</option>)}
+              <label htmlFor="trade-filter" className="sr-only">Filter by service</label>
+              <ServiceSelect id="trade-filter" catalog={catalog} value={serviceFilter} onChange={setServiceFilter} allLabel="All services" groupOptions />
+              <label htmlFor="cred-filter" className="sr-only">Filter by verified credential</label>
+              <select id="cred-filter" value={credFilter} onChange={e => setCredFilter(e.target.value)}>
+                <option value="">Any credential status</option>
+                <option value="insurance">Insurance verified</option>
+                <option value="trade_license">Trade license verified</option>
+                <option value="business_license">Business license verified</option>
+                <option value="bond">Bond verified</option>
               </select>
             </div>
             <div style={{ display: "grid", gap: 16 }} role="list" aria-label="Contractor listings">
@@ -1865,10 +1829,11 @@ function avatarInitials(name) {
                         {c.available ? "Available" : "Busy"}
                       </span>
                       {isContractorVerified(c) && (
-                        <span className="badge avail" title="License & insurance on file">✓ Verified</span>
+                        <span className="badge avail" title={VERIFIED_PRO_MEANING}>✓ Verified pro</span>
                       )}
                     </div>
                     <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 6 }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
+                    <VerifiedCredentialBadges contractor={c} reqMap={tradeReqMap} />
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
                       <Stars rating={c.rating} />
                       <span style={{ fontSize: 13, color: "#94a3b8" }}>{c.rating} ({c.reviews_count} reviews)</span>
@@ -1939,40 +1904,13 @@ function avatarInitials(name) {
                   aria-required="true"
                 />
               </div>
-              <div>
-                <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>
-                  Trades Needed * <span style={{ color: "#64748b" }}>(pick one or more — each becomes a separate sub-job that a matching contractor can accept)</span>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
-                  {tradeTypes.map(t => {
-                    const checked = jobForm.trades.includes(t);
-                    return (
-                      <label
-                        key={t}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          padding: "8px 10px", borderRadius: 8,
-                          background: checked ? "rgba(245,158,11,0.12)" : "#0f172a",
-                          border: `1px solid ${checked ? "#f59e0b" : "#334155"}`,
-                          cursor: "pointer", fontSize: 13,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={e => setJobForm(f => {
-                            const next = new Set(f.trades);
-                            if (e.target.checked) next.add(t); else next.delete(t);
-                            return { ...f, trades: Array.from(next) };
-                          })}
-                          style={{ width: "auto", accentColor: "#f59e0b" }}
-                        />
-                        {t}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
+              <ServicePicker
+                catalog={catalog}
+                idPrefix="job-svc"
+                value={jobForm.trades}
+                onChange={trades => setJobForm(f => ({ ...f, trades }))}
+                label={<>Services Needed * <span style={{ color: "#64748b" }}>(pick one or more — each becomes a separate sub-job that a matching pro can accept)</span></>}
+              />
               <div>
                 <label htmlFor="job-budget" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Budget ($) <span style={{ color: "#64748b" }}>(total across all trades)</span></label>
                 <input
@@ -1995,6 +1933,15 @@ function avatarInitials(name) {
                   onChange={v => setJobForm(f => ({ ...f, location: v }))}
                 />
               </div>
+              {jobForm.trades.length > 0 && (
+                <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, fontSize: 12, color: "#94a3b8", lineHeight: 1.6 }} role="note">
+                  <div style={{ fontWeight: 700, color: "#cbd5e1", marginBottom: 4 }}>Licensing</div>
+                  {jobForm.trades.map(t => (
+                    <div key={t}><strong style={{ color: "#f1f5f9", fontWeight: 600 }}>{t}:</strong> {licensingSummary(t, jobForm.location)}</div>
+                  ))}
+                  <div style={{ marginTop: 4, color: "#64748b" }}>Confirm any license your project needs with the pro you hire and your local permitting office.</div>
+                </div>
+              )}
               <div>
                 <label htmlFor="job-desc" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Job Description</label>
                 <textarea
@@ -2127,21 +2074,9 @@ function avatarInitials(name) {
                         </div>
                         <div style={{ background: "#064e3b", border: "1px solid #047857", borderRadius: 8, padding: 12, fontSize: 13 }}>
                           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#34d399", marginBottom: 8 }}>
-                            ✓ VERIFIED LICENSE &amp; INSURANCE
+                            CREDENTIALS
                           </div>
-                          <div style={{ color: "#f1f5f9", lineHeight: 1.7 }}>
-                            <div>
-                              <strong>{j.accepter.license_type || "License"}</strong>
-                              {j.accepter.license_number ? ` · #${j.accepter.license_number}` : ""}
-                              {j.accepter.license_url && <> · <a href={j.accepter.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view document</a></>}
-                            </div>
-                            <div>
-                              <strong>Insurance</strong>
-                              {j.accepter.insurance_carrier ? ` · ${j.accepter.insurance_carrier}` : ""}
-                              {j.accepter.insurance_expires_at ? ` · expires ${j.accepter.insurance_expires_at}` : ""}
-                              {j.accepter.insurance_url && <> · <a href={j.accepter.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view COI</a></>}
-                            </div>
-                          </div>
+                          <CredentialList contractor={j.accepter} reqMap={tradeReqMap} showDocs />
                           <button
                             className="btn btn-outline btn-sm"
                             style={{ marginTop: 10, borderColor: "#047857", color: "#a7f3d0" }}
@@ -2184,17 +2119,16 @@ function avatarInitials(name) {
         {tab === "jobs" && user && (
           <section aria-labelledby="jobs-heading">
             <h1 id="jobs-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>OPEN JOBS</h1>
-            <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Browse jobs posted by homeowners. Reach out to claim work.</p>
-            <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-              <label htmlFor="job-trade-filter" className="sr-only">Filter by trade</label>
-              <select
-                id="job-trade-filter"
-                value={trade}
-                onChange={e => setTrade(e.target.value)}
-                style={{ width: "auto", minWidth: 200 }}
-              >
-                {TRADES.map(t => <option key={t}>{t}</option>)}
-              </select>
+            <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Browse jobs posted by homeowners and businesses. Accept work that matches your services.</p>
+            <div className="filter-bar" style={{ alignItems: "center" }}>
+              <label htmlFor="job-trade-filter" className="sr-only">Filter by service</label>
+              <ServiceSelect id="job-trade-filter" catalog={catalog} value={serviceFilter} onChange={setServiceFilter} allLabel="All services" groupOptions />
+              {myContractor && (
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#cbd5e1", cursor: "pointer" }}>
+                  <input type="checkbox" checked={onlyMyServices} onChange={e => setOnlyMyServices(e.target.checked)} style={{ width: "auto", accentColor: "#f59e0b" }} />
+                  Only my services
+                </label>
+              )}
             </div>
             {jobs.length === 0 ? (
               <div style={{ color: "#475569", padding: 40, textAlign: "center" }} role="status">
@@ -2202,7 +2136,7 @@ function avatarInitials(name) {
               </div>
             ) : (
               <div style={{ display: "grid", gap: 12 }} role="list" aria-label="Open jobs">
-                {jobs.filter(j => !j.deleted_at && !j.accepted_by && (trade === "All Trades" || j.trade === trade)).map(j => {
+                {openJobsShown.map(j => {
                   const minePicked  = false;
                   const taken       = false;
                   return (
@@ -2213,11 +2147,14 @@ function avatarInitials(name) {
                           <span style={{ color: "#f59e0b", fontWeight: 700, fontSize: 15 }}>${Number(j.budget).toLocaleString()}</span>
                         )}
                       </div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: j.description ? 10 : 0 }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                         <span className="badge">{j.trade}</span>
                         <span className="badge">{j.location}</span>
                         {minePicked && <span className="badge avail">✓ Accepted by you</span>}
                         {taken && <span className="badge unavail">Accepted</span>}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#64748b", marginBottom: j.description ? 10 : 0 }}>
+                        Licensing — {licensingSummary(j.trade, j.location)}
                       </div>
                       {j.description && (
                         <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.55, marginBottom: 10 }}>{j.description}</p>
@@ -2260,9 +2197,9 @@ function avatarInitials(name) {
                           const title = !myContractor
                             ? "Create your profile first"
                             : !verified
-                              ? "Upload license & insurance to accept jobs"
+                              ? "Your profile must be verified to accept jobs"
                               : !tradeMatch
-                                ? `Needs a ${j.trade} — add that trade to your profile to accept`
+                                ? `Needs ${j.trade} — add that service to your profile to accept`
                                 : undefined;
                           return (
                             <button
@@ -2280,9 +2217,9 @@ function avatarInitials(name) {
                     </div>
                   );
                 })}
-                {jobs.filter(j => !j.deleted_at && !j.accepted_by && (trade === "All Trades" || j.trade === trade)).length === 0 && (
+                {openJobsShown.length === 0 && (
                   <div style={{ color: "#475569", textAlign: "center", padding: 24 }} role="status">
-                    No open jobs match this trade. Try "All Trades", or check <button className="btn btn-outline btn-sm" onClick={() => setTab("myjobs")} style={{ marginLeft: 4 }}>My Jobs</button> for work you've already accepted.
+                    No open jobs match these filters. Try "All services", or check <button className="btn btn-outline btn-sm" onClick={() => setTab("myjobs")} style={{ marginLeft: 4 }}>My Jobs</button> for work you've already accepted.
                   </div>
                 )}
               </div>
@@ -2522,47 +2459,17 @@ function avatarInitials(name) {
                         <div style={{ fontSize: 13, color: "#94a3b8" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
                       </div>
                     </div>
-                    <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 13, lineHeight: 1.7 }}>
-                      {c.business_license_url && (
-                        <div>
-                          <strong>Business License</strong>
-                          {c.business_license_number ? ` · #${c.business_license_number}` : ""}
-                          {" · "}
-                          <a href={c.business_license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a>
-                        </div>
-                      )}
-                      {Object.entries(c.trade_licenses || {}).map(([trade, tl]) => (
-                        <div key={trade}>
-                          <strong>{tl.type || "Trade License"}</strong>
-                          <span style={{ color: "#94a3b8" }}> · {trade}</span>
-                          {tl.number ? ` · #${tl.number}` : ""}
-                          {tl.url && <> · <a href={tl.url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a></>}
-                        </div>
-                      ))}
-                      {(!c.trade_licenses || Object.keys(c.trade_licenses).length === 0) && c.license_url && (
-                        <div>
-                          <strong>{c.license_type || "Trade License"}</strong>
-                          {c.license_number ? ` · #${c.license_number}` : ""}
-                          {" · "}
-                          <a href={c.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a>
-                        </div>
-                      )}
-                      <div>
-                        <strong>Insurance</strong>
-                        {c.insurance_carrier ? ` · ${c.insurance_carrier}` : ""}
-                        {c.insurance_expires_at ? ` · expires ${c.insurance_expires_at}` : ""}
-                        {" · "}
-                        <a href={c.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view COI</a>
-                      </div>
-                      {c.bond_url && (
-                        <div>
-                          <strong>Bond</strong>
-                          {c.bond_amount ? ` · $${Number(c.bond_amount).toLocaleString()}` : ""}
-                          {" · "}
-                          <a href={c.bond_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a>
-                        </div>
-                      )}
+                    <div style={{ marginBottom: 12 }}>
+                      <CredentialReviewPanel contractor={c} reqMap={tradeReqMap} onSave={adminSaveCredentialReview} />
                     </div>
+                    {(() => {
+                      const unreviewed = contractorCredentials(c, tradeReqMap).filter(i => i.status === "pending").length;
+                      return unreviewed > 0 ? (
+                        <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
+                          {unreviewed} document{unreviewed === 1 ? "" : "s"} not yet reviewed. Approving the profile doesn't mark documents verified.
+                        </div>
+                      ) : null;
+                    })()}
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <button className="btn btn-gold btn-sm" onClick={() => adminSetVerified(c, true)} disabled={adminBusy}>
                         Verify
@@ -2601,14 +2508,8 @@ function avatarInitials(name) {
                           {c.denial_reason || "(no reason recorded)"}
                           <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 6 }}>Denied {new Date(c.denied_at).toLocaleString()}</div>
                         </div>
-                        <div style={{ background: "#0f172a", borderRadius: 8, padding: 10, fontSize: 12, lineHeight: 1.7, color: "#f1f5f9", marginBottom: 10 }}>
-                          {c.business_license_url && <div><strong>Business License</strong>{c.business_license_number ? ` · #${c.business_license_number}` : ""} · <a href={c.business_license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
-                          {Object.entries(c.trade_licenses || {}).map(([trade, tl]) => (
-                            <div key={trade}><strong>{tl.type || "Trade License"}</strong> <span style={{ color: "#94a3b8" }}>· {trade}</span>{tl.number ? ` · #${tl.number}` : ""}{tl.url && <> · <a href={tl.url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></>}</div>
-                          ))}
-                          {(!c.trade_licenses || Object.keys(c.trade_licenses).length === 0) && c.license_url && <div><strong>{c.license_type || "Trade License"}</strong>{c.license_number ? ` · #${c.license_number}` : ""} · <a href={c.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
-                          {c.insurance_url && <div><strong>Insurance</strong>{c.insurance_carrier ? ` · ${c.insurance_carrier}` : ""}{c.insurance_expires_at ? ` · expires ${c.insurance_expires_at}` : ""} · <a href={c.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
-                          {c.bond_url && <div><strong>Bond</strong>{c.bond_amount ? ` · $${Number(c.bond_amount).toLocaleString()}` : ""} · <a href={c.bond_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
+                        <div style={{ marginBottom: 10 }}>
+                          <CredentialReviewPanel contractor={c} reqMap={tradeReqMap} onSave={adminSaveCredentialReview} />
                         </div>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <button className="btn btn-gold btn-sm" onClick={() => adminSetVerified(c, true)}>Approve anyway</button>
@@ -2636,7 +2537,7 @@ function avatarInitials(name) {
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 600 }}>
                             {c.name}
-                            <span className="badge avail" style={{ marginLeft: 6 }}>✓ Verified</span>
+                            <span className="badge avail" style={{ marginLeft: 6 }}>✓ Verified pro</span>
                             {c.deactivated_at && <span className="badge unavail" style={{ marginLeft: 4 }}>Off board</span>}
                           </div>
                           <div style={{ fontSize: 12, color: "#94a3b8" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
@@ -2652,21 +2553,11 @@ function avatarInitials(name) {
                         {c.website && <div><strong>Website:</strong> <a href={/^https?:\/\//i.test(c.website) ? c.website : `https://${c.website}`} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>{c.website.replace(/^https?:\/\//i, "")}</a></div>}
                         {c.bio && <div style={{ marginTop: 6 }}><strong>Bio:</strong> {c.bio}</div>}
                       </div>
-                      <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, fontSize: 13, lineHeight: 1.75, marginBottom: 12 }}>
-                        <div>
-                          <strong>{c.license_type || "License"}</strong>
-                          {c.license_number ? ` · #${c.license_number}` : ""}
-                          {c.license_url && <> · <a href={c.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view license</a></>}
-                        </div>
-                        <div>
-                          <strong>Insurance</strong>
-                          {c.insurance_carrier ? ` · ${c.insurance_carrier}` : ""}
-                          {c.insurance_expires_at ? ` · expires ${c.insurance_expires_at}` : ""}
-                          {c.insurance_url && <> · <a href={c.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view COI</a></>}
-                        </div>
+                      <div style={{ marginBottom: 12 }}>
+                        <CredentialReviewPanel contractor={c} reqMap={tradeReqMap} onSave={adminSaveCredentialReview} />
                         {c.verified_at && (
-                          <div style={{ marginTop: 4, color: "#64748b", fontSize: 12 }}>
-                            Verified {new Date(c.verified_at).toLocaleString()}
+                          <div style={{ marginTop: 6, color: "#64748b", fontSize: 12 }}>
+                            Profile approved {new Date(c.verified_at).toLocaleString()}
                           </div>
                         )}
                       </div>
@@ -2850,63 +2741,16 @@ function avatarInitials(name) {
               </div>
             )}
 
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Trade Types ({tradeTypes.length})</h2>
-            <form onSubmit={adminAddTrade} className="card" style={{ padding: 14, marginBottom: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <input
-                required
-                placeholder="Add a trade (e.g. HVAC)"
-                value={newTradeInput}
-                onChange={e => setNewTradeInput(e.target.value)}
-                style={{ flex: 1, minWidth: 220 }}
-              />
-              <button type="submit" className="btn btn-gold" disabled={adminBusy}>Add Trade</button>
-            </form>
-            <div style={{ display: "grid", gap: 6, marginBottom: 32 }}>
-              {tradeTypes.map(t => {
-                const req = tradeReqMap[t] || {};
-                const editing = tradeEditingName === t;
-                if (editing) {
-                  return (
-                    <form key={t} onSubmit={submitTradeEdit} style={{ padding: 12, background: "#0f172a", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
-                      <div>
-                        <label style={{ fontSize: 12, color: "#94a3b8", marginBottom: 4, display: "block" }}>Trade name</label>
-                        <input required value={tradeEditForm.name} onChange={e => setTradeEditForm(f => ({ ...f, name: e.target.value }))} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 12, color: "#94a3b8", marginBottom: 4, display: "block" }}>Trade License Label <span style={{ color: "#64748b" }}>(leave blank if no license required)</span></label>
-                        <input placeholder="e.g. State Plumbing License" value={tradeEditForm.license_label} onChange={e => setTradeEditForm(f => ({ ...f, license_label: e.target.value }))} />
-                      </div>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#f1f5f9", cursor: "pointer" }}>
-                        <input type="checkbox" checked={tradeEditForm.requires_bond} onChange={e => setTradeEditForm(f => ({ ...f, requires_bond: e.target.checked }))} style={{ width: "auto", accentColor: "#f59e0b" }} />
-                        Requires surety bond
-                      </label>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button type="submit" className="btn btn-gold btn-sm" disabled={adminBusy}>Save</button>
-                        <button type="button" className="btn btn-outline btn-sm" onClick={() => setTradeEditingName(null)}>Cancel</button>
-                      </div>
-                    </form>
-                  );
-                }
-                return (
-                  <div key={t} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#0f172a", borderRadius: 8, fontSize: 13, gap: 10, flexWrap: "wrap" }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 600 }}>{t}</div>
-                      <div style={{ fontSize: 12, color: "#94a3b8" }}>
-                        {req.tradeLicense ? `Requires: ${req.tradeLicense}` : "No trade license required"}
-                        {req.bonded ? " · Bonded" : ""}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button className="btn btn-outline btn-sm" onClick={() => openTradeEdit(t)}>Edit</button>
-                      <button className="btn btn-outline btn-sm" onClick={() => adminRemoveTrade(t)}>Remove</button>
-                    </div>
-                  </div>
-                );
-              })}
-              {tradeTypes.length === 0 && (
-                <div style={{ color: "#475569", padding: 12 }}>No trades yet — add one above.</div>
-              )}
-            </div>
+            <AdminServices
+              catalog={catalog}
+              rules={catalogRaw.rules}
+              contractors={contractors}
+              jobs={jobs}
+              adminList={adminList}
+              user={user}
+              notify={notify}
+              reload={loadCatalog}
+            />
 
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Admin Team</h2>
             <form onSubmit={adminInvite} className="card" style={{ padding: 14, marginBottom: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -3104,19 +2948,24 @@ function avatarInitials(name) {
             </div>
 
             {isContractorVerified(modal) ? (
-              <div style={{ background: "#064e3b", border: "1px solid #047857", borderRadius: 12, padding: 14, marginBottom: 20 }}>
+              <div style={{ background: "#064e3b", border: "1px solid #047857", borderRadius: 12, padding: 14, marginBottom: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#34d399", marginBottom: 6 }}>
-                  ✓ VERIFIED
+                  ✓ VERIFIED PRO
                 </div>
-                <div style={{ fontSize: 13, color: "#d1fae5", lineHeight: 1.5 }}>
-                  Our team confirmed this contractor's license &amp; insurance are on file. Full document details are shared once you hire them for a job.
-                </div>
+                <div style={{ fontSize: 13, color: "#d1fae5", lineHeight: 1.5 }}>{VERIFIED_PRO_MEANING}</div>
               </div>
             ) : (
-              <div style={{ background: "#3b1515", border: "1px solid #7f1d1d", borderRadius: 12, padding: 14, marginBottom: 20, fontSize: 13, color: "#fca5a5" }}>
-                This contractor has not been verified yet.
+              <div style={{ background: "#3b1515", border: "1px solid #7f1d1d", borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 13, color: "#fca5a5" }}>
+                This profile has not been approved yet.
               </div>
             )}
+            <div style={{ background: "#0f172a", borderRadius: 12, padding: 14, marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 10 }}>CREDENTIALS</div>
+              <CredentialList contractor={modal} reqMap={tradeReqMap} />
+              <div style={{ fontSize: 12, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
+                “Verified” means our team checked that document. Documents are shared with a customer once this pro accepts their job.
+              </div>
+            </div>
 
             {(reviews[modal.id] || []).length > 0 && (
               <div style={{ marginBottom: 20 }}>
@@ -3198,38 +3047,14 @@ function avatarInitials(name) {
                   onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
                 />
               </div>
-              <div>
-                <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>Trades * <span style={{ color: "#64748b" }}>(pick one or more)</span></div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
-                  {TRADES.filter(t => t !== "All Trades").map(t => {
-                    const checked = profileForm.trades.includes(t);
-                    return (
-                      <label
-                        key={t}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          padding: "8px 10px", borderRadius: 8,
-                          background: checked ? "rgba(245,158,11,0.12)" : "#0f172a",
-                          border: `1px solid ${checked ? "#f59e0b" : "#334155"}`,
-                          cursor: "pointer", fontSize: 13,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={e => setProfileForm(f => {
-                            const next = new Set(f.trades);
-                            if (e.target.checked) next.add(t); else next.delete(t);
-                            return { ...f, trades: Array.from(next) };
-                          })}
-                          style={{ width: "auto", accentColor: "#f59e0b" }}
-                        />
-                        {t}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
+              <ServicePicker
+                catalog={catalog}
+                idPrefix="pf-svc"
+                withPrimary
+                value={profileForm.trades}
+                onChange={trades => setProfileForm(f => ({ ...f, trades }))}
+                label={<>Services * <span style={{ color: "#64748b" }}>(your first pick is your primary service)</span></>}
+              />
               <div>
                 <label htmlFor="pf-hourly" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Hourly Rate ($)</label>
                 <input
@@ -3254,7 +3079,7 @@ function avatarInitials(name) {
                 <label htmlFor="pf-tags" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Specialties (comma-separated)</label>
                 <input
                   id="pf-tags"
-                  placeholder="e.g. Renovations, New Builds, Framing"
+                  placeholder="e.g. Move-out cleans, Commercial kitchens, New builds"
                   value={profileForm.tags}
                   onChange={e => setProfileForm(f => ({ ...f, tags: e.target.value }))}
                 />
@@ -3289,8 +3114,22 @@ function avatarInitials(name) {
                       REQUIRED DOCUMENTS <span style={{ color: "#f87171" }}>*</span>
                     </div>
                     <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
-                      Based on the trades you picked. Files stay private on the platform and only the customer who hires you sees them.
+                      What SubcontractorPros asks for, based on the services you picked. Files are only shared with a customer once you accept their job.
                     </div>
+                    {myContractor && (
+                      <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#cbd5e1", marginBottom: 8 }}>Review status of your documents</div>
+                        <CredentialList contractor={myContractor} reqMap={tradeReqMap} showNotes />
+                      </div>
+                    )}
+                    {(() => {
+                      const noUpload = profileForm.trades.filter(t => !TRADE_REQUIREMENTS[t]?.tradeLicense);
+                      return noUpload.length > 0 ? (
+                        <div style={{ fontSize: 12, color: "#94a3b8", background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14, lineHeight: 1.5 }}>
+                          We don't ask for a trade license upload for {noUpload.join(", ")}. {REQUIREMENTS_FALLBACK} You're responsible for holding any license your work requires.
+                        </div>
+                      ) : null;
+                    })()}
 
                     {/* Business License — always required */}
                     <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14 }}>
@@ -3363,7 +3202,7 @@ function avatarInitials(name) {
                             {i + 3}. {licType} <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 12 }}>(for {t})</span>
                           </div>
                           <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
-                            Required because you registered for {t}.
+                            SubcontractorPros asks {t} providers for this document.
                           </div>
                           <div>
                             <label htmlFor={`pf-tl-num-${t}`} style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>License Number *</label>
@@ -3403,7 +3242,7 @@ function avatarInitials(name) {
                       <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 4, border: "1px solid #f59e0b" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>{bondNumber}. Surety Bond</div>
                         <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
-                          Required because you selected: {profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.bonded).join(", ")}.
+                          SubcontractorPros asks for a bond for: {profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.bonded).join(", ")}.
                         </div>
                         <div>
                           <label htmlFor="pf-bond-amt" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Bond Amount ($)</label>
@@ -3627,10 +3466,8 @@ function avatarInitials(name) {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="job-grid">
                 <div>
-                  <label htmlFor="je-trade" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Trade</label>
-                  <select id="je-trade" value={jobEditModal.trade} onChange={e => setJobEditModal(j => ({ ...j, trade: e.target.value }))}>
-                    {TRADES.filter(t => t !== "All Trades").map(t => <option key={t}>{t}</option>)}
-                  </select>
+                  <label htmlFor="je-trade" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Service</label>
+                  <ServiceSelect id="je-trade" catalog={catalog} value={jobEditModal.trade || ""} onChange={v => setJobEditModal(j => ({ ...j, trade: v }))} />
                 </div>
                 <div>
                   <label htmlFor="je-budget" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Budget ($)</label>
