@@ -299,6 +299,7 @@ export default function App() {
         .from("jobs")
         .select("*")
         .eq("posted_by", user.id)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) { console.error("my jobs load failed:", error); return; }
       const accepterIds = (rows || []).map(j => j.accepted_by).filter(Boolean);
@@ -329,7 +330,10 @@ export default function App() {
   }, [user]);
 
   async function loadJobs() {
-    const { data, error } = await supabase.from("jobs").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("jobs").select("*")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
     if (error) console.error("jobs load failed:", error);
     setJobs(data || []);
   }
@@ -639,6 +643,17 @@ export default function App() {
     } finally {
       setCompleteBusy(false);
     }
+  }
+
+  async function deleteJob(job) {
+    if (!user) return;
+    if (!confirm(`Delete "${job.title}"? This removes it from your list and takes it off the public board. It can't be undone from inside the app.`)) return;
+    const { error } = await supabase.from("jobs")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", job.id);
+    if (error) { notify("Delete failed: " + error.message); return; }
+    await loadJobs();
+    notify("Job deleted.");
   }
 
   async function reopenJob(job) {
@@ -1692,9 +1707,16 @@ function avatarInitials(name) {
                       </div>
                     )}
                     {!j.accepter && (
-                      <div style={{ marginBottom: 8 }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                         <button className="btn btn-outline btn-sm" onClick={() => openJobEdit(j)}>
                           Edit Job
+                        </button>
+                        <button
+                          className="btn btn-outline btn-sm"
+                          onClick={() => deleteJob(j)}
+                          style={{ borderColor: "#f87171", color: "#fca5a5" }}
+                        >
+                          Delete Job
                         </button>
                       </div>
                     )}
