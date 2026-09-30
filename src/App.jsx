@@ -1333,12 +1333,12 @@ function avatarInitials(name) {
       )}
 
       <header style={{ background: "#0f172a", borderBottom: "1px solid #1e293b", padding: "0 20px" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60, gap: 12, position: "relative" }}>
+        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 60, gap: 12, flexWrap: "wrap", padding: "8px 0", position: "relative" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, minWidth: 0 }}>
-            <span style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", whiteSpace: "nowrap" }}>⚒ SUBCONTRACTOR</span>
-            <span style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>PROS</span>
+            <span style={{ fontSize: 20, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", whiteSpace: "nowrap" }}>⚒ SUBCONTRACTOR</span>
+            <span style={{ fontSize: 11, fontFamily: "'Bebas Neue', cursive", color: "#f59e0b", fontWeight: 600, letterSpacing: 1 }}>PROS</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", position: "relative" }}>
             {user ? (
               <>
                 <button
