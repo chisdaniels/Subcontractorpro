@@ -97,13 +97,18 @@ export function VerifiedCredentialsSummary({ contractor }) {
     return <div style={{ fontSize: 13, color: "#94a3b8" }}>No credentials verified yet.</div>;
   }
   return (
-    <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
-      {labels.map(l => (
-        <li key={l} style={{ fontSize: 14, color: "#f1f5f9" }}>
-          <span style={{ color: "#34d399", fontWeight: 700 }}>✓</span> {l} verified
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+        {labels.map(l => (
+          <li key={l} style={{ fontSize: 14, color: "#f1f5f9" }}>
+            <span style={{ color: "#34d399", fontWeight: 700 }}>✓</span> {l} verified
+          </li>
+        ))}
+      </ul>
+      <div style={{ fontSize: 12, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
+        Our team checked each of these documents. The customer who hires this pro can view them.
+      </div>
+    </>
   );
 }
 

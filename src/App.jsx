@@ -2955,9 +2955,6 @@ function avatarInitials(name) {
             <div style={{ background: "#0f172a", borderRadius: 12, padding: 14, marginBottom: 20 }}>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 10 }}>VERIFIED BY SUBCONTRACTOR PROS</div>
               <VerifiedCredentialsSummary contractor={modal} />
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
-                Our team checked each of these documents. The customer who hires this pro can view the documents themselves.
-              </div>
             </div>
 
             {(reviews[modal.id] || []).length > 0 && (
