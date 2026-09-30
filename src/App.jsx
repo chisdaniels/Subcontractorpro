@@ -295,20 +295,23 @@ export default function App() {
   useEffect(() => {
     if (!isCustomer) { setMyJobs([]); return; }
     (async () => {
+      // Show all of the customer's posted jobs except the ones they
+      // themselves deleted — admin-removed jobs still show up with a
+      // "Removed by admin" badge and no actions.
       const { data: rows, error } = await supabase
         .from("jobs")
         .select("*")
         .eq("posted_by", user.id)
-        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) { console.error("my jobs load failed:", error); return; }
-      const accepterIds = (rows || []).map(j => j.accepted_by).filter(Boolean);
+      const visible = (rows || []).filter(j => !j.deleted_at || j.deleted_by !== user.id);
+      const accepterIds = visible.map(j => j.accepted_by).filter(Boolean);
       let accepters = [];
       if (accepterIds.length) {
         const { data } = await supabase.from("contractors").select("*").in("user_id", accepterIds);
         accepters = data || [];
       }
-      const enriched = (rows || []).map(j => ({
+      const enriched = visible.map(j => ({
         ...j,
         accepter: accepters.find(c => c.user_id === j.accepted_by) ?? null,
       }));
@@ -330,9 +333,11 @@ export default function App() {
   }, [user]);
 
   async function loadJobs() {
+    // Load all jobs (including deleted) — display filters as appropriate:
+    // public views hide anything with deleted_at set, admins see everything,
+    // and the customer's own view hides self-deletions but keeps admin ones.
     const { data, error } = await supabase
       .from("jobs").select("*")
-      .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (error) console.error("jobs load failed:", error);
     setJobs(data || []);
@@ -654,11 +659,30 @@ export default function App() {
     if (!user) return;
     if (!confirm(`Delete "${job.title}"? This removes it from your list and takes it off the public board. It can't be undone from inside the app.`)) return;
     const { error } = await supabase.from("jobs")
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ deleted_at: new Date().toISOString(), deleted_by: user.id })
       .eq("id", job.id);
     if (error) { notify("Delete failed: " + error.message); return; }
     await loadJobs();
     notify("Job deleted.");
+  }
+
+  async function adminRemoveJob(job) {
+    if (!confirm(`Remove "${job.title}" from the board? The customer will see a "Removed by admin" note and won't be able to restore it themselves.`)) return;
+    const { error } = await supabase.from("jobs")
+      .update({ deleted_at: new Date().toISOString(), deleted_by: user.id })
+      .eq("id", job.id);
+    if (error) { notify("Remove failed: " + error.message); return; }
+    await loadJobs();
+    notify(`Removed "${job.title}".`);
+  }
+
+  async function adminRestoreJob(job) {
+    const { error } = await supabase.from("jobs")
+      .update({ deleted_at: null, deleted_by: null })
+      .eq("id", job.id);
+    if (error) { notify("Restore failed: " + error.message); return; }
+    await loadJobs();
+    notify(`Restored "${job.title}".`);
   }
 
   async function reopenJob(job) {
@@ -1674,8 +1698,15 @@ function avatarInitials(name) {
               <div style={{ color: "#475569", padding: 20 }}>You haven't posted any jobs yet.</div>
             ) : (
               <div style={{ display: "grid", gap: 12 }} role="list" aria-label="Your posted jobs">
-                {myJobs.map(j => (
-                  <div key={j.id} className="card" style={{ padding: 18 }} role="listitem">
+                {myJobs.map(j => {
+                  const removedByAdmin = !!j.deleted_at && j.deleted_by !== user.id;
+                  return (
+                  <div key={j.id} className="card" style={{ padding: 18, opacity: removedByAdmin ? 0.7 : 1, borderColor: removedByAdmin ? "#f87171" : undefined }} role="listitem">
+                    {removedByAdmin && (
+                      <div style={{ background: "#3b1515", border: "1px solid #7f1d1d", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 13, color: "#fca5a5" }}>
+                        This job was removed by an admin. Contact support if you'd like it reviewed.
+                      </div>
+                    )}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                       <div style={{ fontWeight: 700, fontSize: 16 }}>{j.title}</div>
                       {j.budget != null && (
@@ -1685,13 +1716,15 @@ function avatarInitials(name) {
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                       <span className="badge">{j.trade}</span>
                       <span className="badge">{j.location}</span>
-                      {j.status === "completed"
-                        ? <span className="badge avail">✓ Completed</span>
-                        : j.accepted_by
-                          ? <span className="badge avail">Accepted</span>
-                          : <span className="badge">Open</span>}
+                      {removedByAdmin
+                        ? <span className="badge unavail">Removed by admin</span>
+                        : j.status === "completed"
+                          ? <span className="badge avail">✓ Completed</span>
+                          : j.accepted_by
+                            ? <span className="badge avail">Accepted</span>
+                            : <span className="badge">Open</span>}
                     </div>
-                    {j.accepter && (
+                    {j.accepter && !removedByAdmin && (
                       <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 8 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 6 }}>ACCEPTED BY</div>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
@@ -1755,7 +1788,7 @@ function avatarInitials(name) {
                         </div>
                       </div>
                     )}
-                    {!j.accepter && (
+                    {!j.accepter && !removedByAdmin && (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                         <button className="btn btn-outline btn-sm" onClick={() => openJobEdit(j)}>
                           Edit Job
@@ -1776,7 +1809,8 @@ function avatarInitials(name) {
                       Posted {new Date(j.created_at).toLocaleString()}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -1804,7 +1838,7 @@ function avatarInitials(name) {
               </div>
             ) : (
               <div style={{ display: "grid", gap: 12 }} role="list" aria-label="Open jobs">
-                {jobs.filter(j => !j.accepted_by && (trade === "All Trades" || j.trade === trade)).map(j => {
+                {jobs.filter(j => !j.deleted_at && !j.accepted_by && (trade === "All Trades" || j.trade === trade)).map(j => {
                   const minePicked  = false;
                   const taken       = false;
                   return (
@@ -1882,7 +1916,7 @@ function avatarInitials(name) {
                     </div>
                   );
                 })}
-                {jobs.filter(j => !j.accepted_by && (trade === "All Trades" || j.trade === trade)).length === 0 && (
+                {jobs.filter(j => !j.deleted_at && !j.accepted_by && (trade === "All Trades" || j.trade === trade)).length === 0 && (
                   <div style={{ color: "#475569", textAlign: "center", padding: 24 }} role="status">
                     No open jobs match this trade. Try "All Trades", or check <button className="btn btn-outline btn-sm" onClick={() => setTab("myjobs")} style={{ marginLeft: 4 }}>My Jobs</button> for work you've already accepted.
                   </div>
@@ -1894,7 +1928,7 @@ function avatarInitials(name) {
 
         {/* MY JOBS TAB */}
         {tab === "myjobs" && user && (() => {
-          const workingOn = jobs.filter(j => j.accepted_by === user.id);
+          const workingOn = jobs.filter(j => j.accepted_by === user.id && !j.deleted_at);
           const posted    = myJobs;
           return (
             <section aria-labelledby="myjobs-heading">
@@ -2199,7 +2233,7 @@ function avatarInitials(name) {
                         )}
                       </div>
                       {(() => {
-                        const acceptedJobs = jobs.filter(j => c.user_id && j.accepted_by === c.user_id);
+                        const acceptedJobs = jobs.filter(j => c.user_id && j.accepted_by === c.user_id && !j.deleted_at);
                         if (acceptedJobs.length === 0) return null;
                         return (
                           <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 12 }}>
@@ -2245,6 +2279,60 @@ function avatarInitials(name) {
                       </div>
                     </div>
                   </details>
+                ))}
+              </div>
+            )}
+
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
+              All Jobs ({jobs.filter(j => !j.deleted_at).length} live · {jobs.filter(j => j.deleted_at).length} removed)
+            </h2>
+            {jobs.length === 0 ? (
+              <div style={{ color: "#475569", padding: 12, marginBottom: 32 }}>No jobs yet.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 8, marginBottom: 32 }}>
+                {jobs.map(j => (
+                  <div key={j.id} className="card" style={{ padding: 12, fontSize: 13, opacity: j.deleted_at ? 0.7 : 1, borderColor: j.deleted_at ? "#7f1d1d" : undefined }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+                      <div style={{ fontWeight: 600 }}>
+                        {j.title}
+                        <span className="badge" style={{ marginLeft: 6 }}>{j.trade}</span>
+                        {j.deleted_at
+                          ? <span className="badge unavail" style={{ marginLeft: 4 }}>Removed</span>
+                          : j.status === "completed"
+                            ? <span className="badge avail" style={{ marginLeft: 4 }}>Completed</span>
+                            : j.accepted_by
+                              ? <span className="badge avail" style={{ marginLeft: 4 }}>Accepted</span>
+                              : <span className="badge" style={{ marginLeft: 4 }}>Open</span>}
+                      </div>
+                      <div style={{ color: "#64748b", fontSize: 12 }}>{new Date(j.created_at).toLocaleString()}</div>
+                    </div>
+                    <div style={{ color: "#94a3b8", marginBottom: 6 }}>
+                      {j.location}
+                      {j.budget != null && ` · $${Number(j.budget).toLocaleString()}`}
+                    </div>
+                    {(j.homeowner_name || j.homeowner_email) && (
+                      <div style={{ color: "#94a3b8", marginBottom: 6, fontSize: 12 }}>
+                        Posted by <strong style={{ color: "#f1f5f9" }}>{j.homeowner_name || j.homeowner_email}</strong>
+                        {j.homeowner_email && j.homeowner_name && ` · ${j.homeowner_email}`}
+                        {j.homeowner_phone && ` · ${j.homeowner_phone}`}
+                      </div>
+                    )}
+                    {j.accepted_by && (() => {
+                      const acc = contractors.find(c => c.user_id === j.accepted_by);
+                      return acc ? (
+                        <div style={{ color: "#94a3b8", marginBottom: 6, fontSize: 12 }}>
+                          Accepted by <strong style={{ color: "#f1f5f9" }}>{acc.name}</strong>
+                        </div>
+                      ) : null;
+                    })()}
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                      {j.deleted_at ? (
+                        <button className="btn btn-gold btn-sm" onClick={() => adminRestoreJob(j)}>Restore</button>
+                      ) : (
+                        <button className="btn btn-outline btn-sm" onClick={() => adminRemoveJob(j)} style={{ borderColor: "#f87171", color: "#fca5a5" }}>Remove from board</button>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
