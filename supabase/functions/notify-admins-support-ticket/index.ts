@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
 </body></html>`.trim();
 
     const text = [
-      `New TradeLinkPro support ticket #${ticket.id}`,
+      `New Subcontractor Pros support ticket #${ticket.id}`,
       `From: ${ticket.email}`,
       `Subject: ${ticket.subject}`,
       "",

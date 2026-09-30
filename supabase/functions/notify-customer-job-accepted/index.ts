@@ -132,13 +132,13 @@ Deno.serve(async (req) => {
 
       <tr><td style="padding:0 24px 24px;">
         <p style="color:#475569;font-size:14px;line-height:1.55;margin:0 0 16px;">
-          They also sent you an intro message in your TradeLinkPro inbox. Log in to reply and coordinate the work.
+          They also sent you an intro message in your Subcontractor Pros inbox. Log in to reply and coordinate the work.
         </p>
         ${appUrl ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#f59e0b;border-radius:10px;"><a href="${appUrl}" style="display:inline-block;padding:12px 24px;color:#0f172a;text-decoration:none;font-weight:700;">Open Messages</a></td></tr></table>` : ""}
       </td></tr>
 
       <tr><td style="padding:0 24px 24px;color:#94a3b8;font-size:12px;">
-        You're receiving this because a contractor accepted a job you posted on TradeLinkPro.
+        You're receiving this because a contractor accepted a job you posted on Subcontractor Pros.
       </td></tr>
     </table>
   </td></tr>
@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
       `Insurance${contractor.insurance_carrier ? " · " + contractor.insurance_carrier : ""}${contractor.insurance_expires_at ? " (expires " + contractor.insurance_expires_at + ")" : ""}${contractor.insurance_url ? "\n  COI: " + contractor.insurance_url : ""}`,
       "",
       "They also sent you an intro message in the app. Log in to reply.",
-      appUrl ? `Open TradeLinkPro: ${appUrl}` : "",
+      appUrl ? `Open Subcontractor Pros: ${appUrl}` : "",
     ].filter(Boolean).join("\n");
 
     const res = await fetch("https://api.resend.com/emails", {

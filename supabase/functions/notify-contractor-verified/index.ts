@@ -70,8 +70,8 @@ Deno.serve(async (req) => {
 
     const verified = !!contractor.verified;
     const subject = verified
-      ? `TradeLinkPro — you're verified, ${contractor.name}!`
-      : `TradeLinkPro — verification status updated`;
+      ? `Subcontractor Pros — you're verified, ${contractor.name}!`
+      : `Subcontractor Pros — verification status updated`;
 
     const bodyHtml = verified
       ? `
@@ -79,20 +79,20 @@ Deno.serve(async (req) => {
   <h2 style="color:#0f172a;margin:0 0 8px;">You're verified 🎉</h2>
   <p style="color:#475569;line-height:1.55;">Our team reviewed your license and insurance and you're all set. The ✓ Verified badge is now live on your profile, and homeowners can hire you.</p>
   <p style="color:#475569;line-height:1.55;">Head to Browse Jobs to see open work in your area.</p>
-  ${appUrl ? `<p><a href="${appUrl}" style="display:inline-block;background:#f59e0b;color:#0f172a;padding:12px 24px;text-decoration:none;border-radius:10px;font-weight:700;">Open TradeLinkPro →</a></p>` : ""}
+  ${appUrl ? `<p><a href="${appUrl}" style="display:inline-block;background:#f59e0b;color:#0f172a;padding:12px 24px;text-decoration:none;border-radius:10px;font-weight:700;">Open Subcontractor Pros →</a></p>` : ""}
 </div>`
       : `
 <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;padding:24px;">
   <h2 style="color:#0f172a;margin:0 0 8px;">Verification paused</h2>
-  <p style="color:#475569;line-height:1.55;">Our team un-verified your profile. This usually means a license or COI needs to be updated. Open TradeLinkPro to re-upload — we'll re-review.</p>
-  ${appUrl ? `<p><a href="${appUrl}" style="display:inline-block;background:#f59e0b;color:#0f172a;padding:12px 24px;text-decoration:none;border-radius:10px;font-weight:700;">Open TradeLinkPro →</a></p>` : ""}
+  <p style="color:#475569;line-height:1.55;">Our team un-verified your profile. This usually means a license or COI needs to be updated. Open Subcontractor Pros to re-upload — we'll re-review.</p>
+  ${appUrl ? `<p><a href="${appUrl}" style="display:inline-block;background:#f59e0b;color:#0f172a;padding:12px 24px;text-decoration:none;border-radius:10px;font-weight:700;">Open Subcontractor Pros →</a></p>` : ""}
 </div>`;
 
     const html = `<!doctype html><html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f8fafc;padding:24px;">${bodyHtml}</body></html>`;
 
     const text = verified
-      ? `You're verified, ${contractor.name}! The ✓ Verified badge is now live on your profile — homeowners can hire you.\n${appUrl ? `\nOpen TradeLinkPro: ${appUrl}` : ""}`
-      : `Your verification was paused. Log in and re-upload your license / COI when they're current.\n${appUrl ? `\nOpen TradeLinkPro: ${appUrl}` : ""}`;
+      ? `You're verified, ${contractor.name}! The ✓ Verified badge is now live on your profile — homeowners can hire you.\n${appUrl ? `\nOpen Subcontractor Pros: ${appUrl}` : ""}`
+      : `Your verification was paused. Log in and re-upload your license / COI when they're current.\n${appUrl ? `\nOpen Subcontractor Pros: ${appUrl}` : ""}`;
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",

@@ -1276,8 +1276,8 @@ function avatarInitials(name) {
       <header style={{ background: "#0f172a", borderBottom: "1px solid #1e293b", padding: "0 20px" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60, gap: 12, position: "relative" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, minWidth: 0 }}>
-            <span style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", whiteSpace: "nowrap" }}>⚒ TRADELINK</span>
-            <span style={{ fontSize: 11, color: "#475569", fontWeight: 600, letterSpacing: 1 }}>PRO</span>
+            <span style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", whiteSpace: "nowrap" }}>⚒ SUBCONTRACTOR</span>
+            <span style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>PROS</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, position: "relative" }}>
             {user ? (
@@ -3372,7 +3372,7 @@ function avatarInitials(name) {
                 <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Shown on the contractor's profile.</div>
               </div>
               <div>
-                <label htmlFor="cm-comment" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Private note to TradeLink (optional)</label>
+                <label htmlFor="cm-comment" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Private note to Subcontractor Pros (optional)</label>
                 <textarea
                   id="cm-comment"
                   rows={2}

@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get("APP_URL") || "";
     if (!apiKey || !from) return json({ error: "secrets missing" }, 500);
 
-    const subject = `TradeLinkPro — your support ticket is resolved`;
+    const subject = `Subcontractor Pros — your support ticket is resolved`;
 
     const html = `
 <!doctype html>
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
           </td></tr>
         </table>
       </td></tr>
-      ${appUrl ? `<tr><td style="padding:0 24px 24px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#f59e0b;border-radius:10px;"><a href="${appUrl}" style="display:inline-block;padding:12px 24px;color:#0f172a;text-decoration:none;font-weight:700;">Open TradeLinkPro</a></td></tr></table></td></tr>` : ""}
+      ${appUrl ? `<tr><td style="padding:0 24px 24px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#f59e0b;border-radius:10px;"><a href="${appUrl}" style="display:inline-block;padding:12px 24px;color:#0f172a;text-decoration:none;font-weight:700;">Open Subcontractor Pros</a></td></tr></table></td></tr>` : ""}
       <tr><td style="padding:0 24px 24px;color:#94a3b8;font-size:12px;">
         Reply directly to this email to reopen the ticket.
       </td></tr>
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
 </body></html>`.trim();
 
     const text = [
-      `Your TradeLinkPro support ticket has been marked resolved.`,
+      `Your Subcontractor Pros support ticket has been marked resolved.`,
       "",
       `Subject: ${ticket.subject}`,
       "",
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
       ticket.body,
       "",
       `Reply to this email to reopen the ticket.`,
-      appUrl ? `\nOpen TradeLinkPro: ${appUrl}` : "",
+      appUrl ? `\nOpen Subcontractor Pros: ${appUrl}` : "",
     ].filter(Boolean).join("\n");
 
     const res = await fetch("https://api.resend.com/emails", {
