@@ -3,6 +3,39 @@ import { supabase } from "./lib/supabase";
 
 const FALLBACK_TRADES = ["General Contractor", "Plumber", "Electrician", "Roofer", "Carpenter", "Mason", "Flooring Installer", "Cabinets", "Countertops", "Landscaping", "Dirt Work", "Painting", "Sheetrock"];
 
+// Trade-specific documentation rules based on typical US state licensing.
+// State laws vary — we ask for the license/bond when the trade generally
+// requires it. If a trade isn't listed here, only the universal Business
+// License + General Liability Insurance are required.
+const TRADE_REQUIREMENTS = {
+  "General Contractor":  { tradeLicense: "General Contractor's License", bonded: true },
+  "Plumber":             { tradeLicense: "Plumbing License",            bonded: true },
+  "Electrician":         { tradeLicense: "Electrical License",          bonded: true },
+  "Roofer":              { tradeLicense: "Roofing License",             bonded: true },
+  "Landscaping":         { tradeLicense: "Landscape Contractor License" },
+  "Dirt Work":           { tradeLicense: "Excavation Contractor License", bonded: true },
+  // The rest — Carpenter, Mason, Flooring Installer, Cabinets, Countertops,
+  // Painting, Sheetrock — need only the universal Business License +
+  // General Liability Insurance in most states.
+};
+
+function requirementsFor(trades) {
+  const list = Array.isArray(trades) ? trades : [];
+  const tradeLicenseNames = new Set();
+  let needsBond = false;
+  for (const t of list) {
+    const req = TRADE_REQUIREMENTS[t];
+    if (!req) continue;
+    if (req.tradeLicense) tradeLicenseNames.add(req.tradeLicense);
+    if (req.bonded) needsBond = true;
+  }
+  return {
+    needsTradeLicense: tradeLicenseNames.size > 0,
+    tradeLicenseNames: Array.from(tradeLicenseNames),
+    needsBond,
+  };
+}
+
 const TAB_PATHS = {
   search:   "/",
   post:     "/post",
@@ -176,6 +209,9 @@ export default function App() {
   const [shareModal, setShareModal] = useState(false);
   const [shareInput, setShareInput] = useState({ clientEmail: "", clientName: "", message: "" });
   const [shareBusy, setShareBusy] = useState(false);
+  const [denyModal, setDenyModal] = useState(null); // contractor being denied
+  const [denyReason, setDenyReason] = useState("");
+  const [denyBusy, setDenyBusy] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [iosInstallModal, setIosInstallModal] = useState(false);
@@ -185,9 +221,10 @@ export default function App() {
   const [profileModal, setProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({
     name: "", trades: ["General Contractor"], location: "", hourly: "", bio: "", tags: "", website: "",
-    license_type: "", license_number: "", insurance_carrier: "", insurance_expires_at: "",
-    license_file: null, insurance_file: null,
-    license_url: "", insurance_url: "",
+    business_license_number: "", business_license_url: "", business_license_file: null,
+    license_type: "", license_number: "", license_url: "", license_file: null,
+    insurance_carrier: "", insurance_expires_at: "", insurance_url: "", insurance_file: null,
+    bond_amount: "", bond_url: "", bond_file: null,
   });
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState(null);
@@ -904,6 +941,41 @@ export default function App() {
     notify(deactivate ? `${contractor.name} taken off the board.` : `${contractor.name} back on the board.`);
   }
 
+  function openDenyModal(contractor) {
+    setDenyReason("");
+    setDenyModal(contractor);
+  }
+
+  async function submitDeny(e) {
+    e.preventDefault();
+    if (!denyModal) return;
+    const reason = denyReason.trim();
+    if (!reason) { notify("Give the contractor a reason so they know what to fix."); return; }
+    setDenyBusy(true);
+    try {
+      const payload = {
+        denied_at: new Date().toISOString(),
+        denied_by: user.id,
+        denial_reason: reason,
+        verified: false,
+        verified_at: null,
+        verified_by: null,
+      };
+      const { error } = await supabase.from("contractors").update(payload).eq("id", denyModal.id);
+      if (error) throw new Error(error.message);
+      setContractors(prev => prev.map(c => c.id === denyModal.id ? { ...c, ...payload } : c));
+      supabase.functions
+        .invoke("notify-contractor-denied", { body: { contractorId: denyModal.id } })
+        .catch(err => console.error("notify denied failed:", err));
+      setDenyModal(null);
+      notify(`Denied ${denyModal.name}. They've been emailed the reason.`);
+    } catch (err) {
+      notify("Deny failed: " + err.message);
+    } finally {
+      setDenyBusy(false);
+    }
+  }
+
   async function adminSetVerified(contractor, verified) {
     setAdminBusy(true);
     const payload = verified
@@ -1050,24 +1122,44 @@ function avatarInitials(name) {
     try {
       const tagsArr = profileForm.tags.split(",").map(t => t.trim()).filter(Boolean);
 
-      // Require license + insurance the first time (or when either is missing on file).
-      const hasLicenseOnFile   = !!(profileForm.license_url   || profileForm.license_file);
-      const hasInsuranceOnFile = !!(profileForm.insurance_url || profileForm.insurance_file);
-      if (!hasLicenseOnFile || !hasInsuranceOnFile) {
-        throw new Error("Please upload both a license and a certificate of insurance to activate your profile.");
-      }
-      if (!profileForm.license_number.trim())    throw new Error("License number is required.");
-      if (!profileForm.license_type.trim())      throw new Error("License type is required.");
-      if (!profileForm.insurance_carrier.trim()) throw new Error("Insurance carrier is required.");
-      if (!profileForm.insurance_expires_at)     throw new Error("Insurance expiration date is required.");
       if (!Array.isArray(profileForm.trades) || profileForm.trades.length === 0) {
         throw new Error("Pick at least one trade.");
       }
+      const req = requirementsFor(profileForm.trades);
 
-      let license_url   = profileForm.license_url;
-      let insurance_url = profileForm.insurance_url;
-      if (profileForm.license_file)   license_url   = await uploadCredential(profileForm.license_file,   "license");
-      if (profileForm.insurance_file) insurance_url = await uploadCredential(profileForm.insurance_file, "insurance");
+      // Universal requirements: business license + general liability insurance.
+      const hasBusinessLicense = !!(profileForm.business_license_url || profileForm.business_license_file);
+      const hasInsurance       = !!(profileForm.insurance_url        || profileForm.insurance_file);
+      if (!hasBusinessLicense) throw new Error("Business license document is required.");
+      if (!profileForm.business_license_number.trim()) throw new Error("Business license number is required.");
+      if (!hasInsurance) throw new Error("Certificate of insurance is required.");
+      if (!profileForm.insurance_carrier.trim()) throw new Error("Insurance carrier is required.");
+      if (!profileForm.insurance_expires_at)     throw new Error("Insurance expiration date is required.");
+
+      // Trade-specific: trade license if the trade needs it.
+      if (req.needsTradeLicense) {
+        const hasTradeLicense = !!(profileForm.license_url || profileForm.license_file);
+        if (!hasTradeLicense) {
+          throw new Error(`Upload your ${req.tradeLicenseNames.join(" / ")} to accept ${profileForm.trades.join(", ")} work.`);
+        }
+        if (!profileForm.license_number.trim()) throw new Error("Trade license number is required.");
+        if (!profileForm.license_type.trim())   throw new Error("Trade license type is required.");
+      }
+
+      // Trade-specific: surety bond.
+      if (req.needsBond) {
+        const hasBond = !!(profileForm.bond_url || profileForm.bond_file);
+        if (!hasBond) throw new Error("Surety bond certificate is required for the trades you selected.");
+      }
+
+      let business_license_url = profileForm.business_license_url;
+      let license_url          = profileForm.license_url;
+      let insurance_url        = profileForm.insurance_url;
+      let bond_url             = profileForm.bond_url;
+      if (profileForm.business_license_file) business_license_url = await uploadCredential(profileForm.business_license_file, "business-license");
+      if (profileForm.license_file)          license_url          = await uploadCredential(profileForm.license_file,          "trade-license");
+      if (profileForm.insurance_file)        insurance_url        = await uploadCredential(profileForm.insurance_file,        "insurance");
+      if (profileForm.bond_file)             bond_url             = await uploadCredential(profileForm.bond_file,             "bond");
 
       const row = {
         user_id: user.id,
@@ -1081,12 +1173,19 @@ function avatarInitials(name) {
         website: profileForm.website.trim() || null,
         avatar: avatarInitials(profileForm.name),
         available: true,
-        license_type:         profileForm.license_type.trim(),
-        license_number:       profileForm.license_number.trim(),
-        license_url,
-        insurance_carrier:    profileForm.insurance_carrier.trim(),
-        insurance_expires_at: profileForm.insurance_expires_at,
+        business_license_number: profileForm.business_license_number.trim(),
+        business_license_url,
+        license_type:            req.needsTradeLicense ? profileForm.license_type.trim() : null,
+        license_number:          req.needsTradeLicense ? profileForm.license_number.trim() : null,
+        license_url:             req.needsTradeLicense ? license_url : null,
+        insurance_carrier:       profileForm.insurance_carrier.trim(),
+        insurance_expires_at:    profileForm.insurance_expires_at,
         insurance_url,
+        bond_amount:             req.needsBond && profileForm.bond_amount ? Number(profileForm.bond_amount) : null,
+        bond_url:                req.needsBond ? bond_url : null,
+        // If they had been denied, clear the denial when they resubmit so
+        // admins see them in "Pending Verification" again.
+        ...(myContractor?.denied_at ? { denied_at: null, denied_by: null, denial_reason: null } : {}),
       };
       const { data, error } = myContractor
         ? await supabase.from("contractors").update(row).eq("id", myContractor.id).select().single()
@@ -1132,14 +1231,20 @@ function avatarInitials(name) {
       bio: myContractor?.bio ?? "",
       tags: (myContractor?.tags ?? []).join(", "),
       website: myContractor?.website ?? "",
-      license_type:         myContractor?.license_type ?? "",
-      license_number:       myContractor?.license_number ?? "",
-      license_url:          myContractor?.license_url ?? "",
-      insurance_carrier:    myContractor?.insurance_carrier ?? "",
-      insurance_expires_at: myContractor?.insurance_expires_at ?? "",
-      insurance_url:        myContractor?.insurance_url ?? "",
-      license_file: null,
-      insurance_file: null,
+      business_license_number: myContractor?.business_license_number ?? "",
+      business_license_url:    myContractor?.business_license_url ?? "",
+      business_license_file:   null,
+      license_type:            myContractor?.license_type ?? "",
+      license_number:          myContractor?.license_number ?? "",
+      license_url:             myContractor?.license_url ?? "",
+      license_file:            null,
+      insurance_carrier:       myContractor?.insurance_carrier ?? "",
+      insurance_expires_at:    myContractor?.insurance_expires_at ?? "",
+      insurance_url:           myContractor?.insurance_url ?? "",
+      insurance_file:          null,
+      bond_amount:             myContractor?.bond_amount?.toString() ?? "",
+      bond_url:                myContractor?.bond_url ?? "",
+      bond_file:               null,
     });
     setProfileError(null);
     setProfileModal(true);
@@ -1550,6 +1655,22 @@ function avatarInitials(name) {
             </div>
           );
         })()}
+
+        {isContractor && myContractor?.denied_at && (
+          <div className="card" style={{ padding: 16, marginBottom: 20, borderColor: "#f87171" }}>
+            <div style={{ fontWeight: 700, marginBottom: 4, color: "#fca5a5" }}>Application was denied</div>
+            <div style={{ fontSize: 13, color: "#fca5a5", background: "#3b1515", borderRadius: 8, padding: 10, marginBottom: 10 }}>
+              <div style={{ fontSize: 11, letterSpacing: 1, fontWeight: 700, marginBottom: 4 }}>REASON</div>
+              {myContractor.denial_reason || "(no reason provided)"}
+            </div>
+            <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 10 }}>
+              Correct the issue and reapply — click below to update your profile. Once you save, our admin team will review again.
+            </div>
+            <button className="btn btn-gold btn-sm" onClick={openProfileModal}>
+              Update &amp; Reapply
+            </button>
+          </div>
+        )}
 
         {isContractor && !myContractor?.deactivated_at && !hasCredentialsOnFile(myContractor) && (
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f87171" }}>
@@ -2276,13 +2397,13 @@ function avatarInitials(name) {
             <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Verify contractor documents and manage the admin team.</p>
 
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
-              Pending Verification ({contractors.filter(c => hasCredentialsOnFile(c) && !c.verified).length})
+              Pending Verification ({contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).length})
             </h2>
-            {contractors.filter(c => hasCredentialsOnFile(c) && !c.verified).length === 0 ? (
+            {contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).length === 0 ? (
               <div style={{ color: "#475569", padding: 20 }}>Nothing waiting for review. 🎉</div>
             ) : (
               <div style={{ display: "grid", gap: 12, marginBottom: 32 }}>
-                {contractors.filter(c => hasCredentialsOnFile(c) && !c.verified).map(c => (
+                {contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).map(c => (
                   <div key={c.id} className="card" style={{ padding: 18 }}>
                     <div style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 10 }}>
                       <Avatar initials={c.avatar} size={44} />
@@ -2306,14 +2427,59 @@ function avatarInitials(name) {
                         <a href={c.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view COI</a>
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: 10 }}>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <button className="btn btn-gold btn-sm" onClick={() => adminSetVerified(c, true)} disabled={adminBusy}>
                         Verify
+                      </button>
+                      <button className="btn btn-outline btn-sm" onClick={() => openDenyModal(c)} style={{ borderColor: "#f87171", color: "#fca5a5" }}>
+                        Deny
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* Denied contractors — data stays visible for admin review */}
+            {contractors.filter(c => c.denied_at).length > 0 && (
+              <>
+                <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
+                  Denied ({contractors.filter(c => c.denied_at).length})
+                </h2>
+                <div style={{ display: "grid", gap: 12, marginBottom: 32 }}>
+                  {contractors.filter(c => c.denied_at).map(c => (
+                    <details key={c.id} className="card" style={{ padding: 0, borderColor: "#7f1d1d" }}>
+                      <summary style={{ padding: 14, cursor: "pointer", listStyle: "none", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <Avatar initials={c.avatar} size={36} />
+                          <div>
+                            <div style={{ fontWeight: 600 }}>{c.name} <span className="badge unavail" style={{ marginLeft: 6 }}>Denied</span></div>
+                            <div style={{ fontSize: 12, color: "#94a3b8" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 12, color: "#64748b" }}>▾</span>
+                      </summary>
+                      <div style={{ padding: "0 14px 14px" }}>
+                        <div style={{ background: "#3b1515", border: "1px solid #7f1d1d", borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 13, color: "#fca5a5" }}>
+                          <div style={{ fontSize: 11, letterSpacing: 1, fontWeight: 700, marginBottom: 4 }}>REASON</div>
+                          {c.denial_reason || "(no reason recorded)"}
+                          <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 6 }}>Denied {new Date(c.denied_at).toLocaleString()}</div>
+                        </div>
+                        <div style={{ background: "#0f172a", borderRadius: 8, padding: 10, fontSize: 12, lineHeight: 1.7, color: "#f1f5f9", marginBottom: 10 }}>
+                          {c.business_license_url && <div><strong>Business License</strong>{c.business_license_number ? ` · #${c.business_license_number}` : ""} · <a href={c.business_license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
+                          {c.license_url && <div><strong>{c.license_type || "Trade License"}</strong>{c.license_number ? ` · #${c.license_number}` : ""} · <a href={c.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
+                          {c.insurance_url && <div><strong>Insurance</strong>{c.insurance_carrier ? ` · ${c.insurance_carrier}` : ""}{c.insurance_expires_at ? ` · expires ${c.insurance_expires_at}` : ""} · <a href={c.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
+                          {c.bond_url && <div><strong>Bond</strong>{c.bond_amount ? ` · $${Number(c.bond_amount).toLocaleString()}` : ""} · <a href={c.bond_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
+                        </div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button className="btn btn-gold btn-sm" onClick={() => adminSetVerified(c, true)}>Approve anyway</button>
+                          <button className="btn btn-outline btn-sm" onClick={() => openDenyModal(c)}>Edit denial reason</button>
+                        </div>
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </>
             )}
 
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
@@ -2941,94 +3107,132 @@ function avatarInitials(name) {
                 />
               </div>
 
-              <div style={{ borderTop: "1px solid #334155", paddingTop: 16, marginTop: 4 }}>
-                <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
-                  LICENSE & INSURANCE <span style={{ color: "#f87171" }}>*</span>
-                </div>
-                <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
-                  Required before you can accept jobs. Files are shown to customers so they can verify you.
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="job-grid">
-                  <div>
-                    <label htmlFor="pf-lic-type" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>License Type *</label>
-                    <input
-                      id="pf-lic-type"
-                      required
-                      placeholder="e.g. General Contractor"
-                      value={profileForm.license_type}
-                      onChange={e => setProfileForm(f => ({ ...f, license_type: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="pf-lic-num" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>License Number *</label>
-                    <input
-                      id="pf-lic-num"
-                      required
-                      placeholder="e.g. TX-123456"
-                      value={profileForm.license_number}
-                      onChange={e => setProfileForm(f => ({ ...f, license_number: e.target.value }))}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 12 }}>
-                  <label htmlFor="pf-lic-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
-                    License Document (PDF or image) {profileForm.license_url ? "" : "*"}
-                  </label>
-                  <input
-                    id="pf-lic-file"
-                    type="file"
-                    accept="application/pdf,image/*"
-                    onChange={e => setProfileForm(f => ({ ...f, license_file: e.target.files?.[0] || null }))}
-                  />
-                  {profileForm.license_url && !profileForm.license_file && (
-                    <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
-                      ✓ On file — <a href={profileForm.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+              {(() => {
+                const req = requirementsFor(profileForm.trades);
+                return (
+                  <div style={{ borderTop: "1px solid #334155", paddingTop: 16, marginTop: 4 }}>
+                    <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
+                      REQUIRED DOCUMENTS <span style={{ color: "#f87171" }}>*</span>
                     </div>
-                  )}
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }} className="job-grid">
-                  <div>
-                    <label htmlFor="pf-ins-carrier" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Insurance Carrier *</label>
-                    <input
-                      id="pf-ins-carrier"
-                      required
-                      placeholder="e.g. State Farm"
-                      value={profileForm.insurance_carrier}
-                      onChange={e => setProfileForm(f => ({ ...f, insurance_carrier: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="pf-ins-exp" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Insurance Expires *</label>
-                    <input
-                      id="pf-ins-exp"
-                      type="date"
-                      required
-                      value={profileForm.insurance_expires_at}
-                      onChange={e => setProfileForm(f => ({ ...f, insurance_expires_at: e.target.value }))}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 12 }}>
-                  <label htmlFor="pf-ins-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
-                    Certificate of Insurance (PDF or image) {profileForm.insurance_url ? "" : "*"}
-                  </label>
-                  <input
-                    id="pf-ins-file"
-                    type="file"
-                    accept="application/pdf,image/*"
-                    onChange={e => setProfileForm(f => ({ ...f, insurance_file: e.target.files?.[0] || null }))}
-                  />
-                  {profileForm.insurance_url && !profileForm.insurance_file && (
-                    <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
-                      ✓ On file — <a href={profileForm.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                    <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
+                      Based on the trades you picked. Files stay private on the platform and only the customer who hires you sees them.
                     </div>
-                  )}
-                </div>
-              </div>
+
+                    {/* Business License — always required */}
+                    <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}>1. Business License</div>
+                      <div>
+                        <label htmlFor="pf-bl-num" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Business License Number *</label>
+                        <input
+                          id="pf-bl-num"
+                          required
+                          placeholder="e.g. BL-123456"
+                          value={profileForm.business_license_number}
+                          onChange={e => setProfileForm(f => ({ ...f, business_license_number: e.target.value }))}
+                        />
+                      </div>
+                      <div style={{ marginTop: 10 }}>
+                        <label htmlFor="pf-bl-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                          Business License Document {profileForm.business_license_url ? "" : "*"}
+                        </label>
+                        <input
+                          id="pf-bl-file"
+                          type="file"
+                          accept="application/pdf,image/*"
+                          onChange={e => setProfileForm(f => ({ ...f, business_license_file: e.target.files?.[0] || null }))}
+                        />
+                        {profileForm.business_license_url && !profileForm.business_license_file && (
+                          <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
+                            ✓ On file — <a href={profileForm.business_license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* General Liability Insurance — always required */}
+                    <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}>2. General Liability Insurance</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="job-grid">
+                        <div>
+                          <label htmlFor="pf-ins-carrier" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Carrier *</label>
+                          <input id="pf-ins-carrier" required placeholder="e.g. State Farm" value={profileForm.insurance_carrier} onChange={e => setProfileForm(f => ({ ...f, insurance_carrier: e.target.value }))} />
+                        </div>
+                        <div>
+                          <label htmlFor="pf-ins-exp" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Expires *</label>
+                          <input id="pf-ins-exp" type="date" required value={profileForm.insurance_expires_at} onChange={e => setProfileForm(f => ({ ...f, insurance_expires_at: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 10 }}>
+                        <label htmlFor="pf-ins-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                          Certificate of Insurance {profileForm.insurance_url ? "" : "*"}
+                        </label>
+                        <input id="pf-ins-file" type="file" accept="application/pdf,image/*" onChange={e => setProfileForm(f => ({ ...f, insurance_file: e.target.files?.[0] || null }))} />
+                        {profileForm.insurance_url && !profileForm.insurance_file && (
+                          <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
+                            ✓ On file — <a href={profileForm.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Trade License — required only if any selected trade needs one */}
+                    {req.needsTradeLicense && (
+                      <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14, border: "1px solid #f59e0b" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>3. Trade License</div>
+                        <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
+                          Required because you selected: {profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.tradeLicense).join(", ")}. Upload your {req.tradeLicenseNames.join(" or ")}.
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="job-grid">
+                          <div>
+                            <label htmlFor="pf-lic-type" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>License Type *</label>
+                            <input id="pf-lic-type" required placeholder={req.tradeLicenseNames[0]} value={profileForm.license_type} onChange={e => setProfileForm(f => ({ ...f, license_type: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label htmlFor="pf-lic-num" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>License Number *</label>
+                            <input id="pf-lic-num" required placeholder="e.g. TX-123456" value={profileForm.license_number} onChange={e => setProfileForm(f => ({ ...f, license_number: e.target.value }))} />
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 10 }}>
+                          <label htmlFor="pf-lic-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                            Trade License Document {profileForm.license_url ? "" : "*"}
+                          </label>
+                          <input id="pf-lic-file" type="file" accept="application/pdf,image/*" onChange={e => setProfileForm(f => ({ ...f, license_file: e.target.files?.[0] || null }))} />
+                          {profileForm.license_url && !profileForm.license_file && (
+                            <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
+                              ✓ On file — <a href={profileForm.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Surety Bond — required only for trades that need bonding */}
+                    {req.needsBond && (
+                      <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 4, border: "1px solid #f59e0b" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>{req.needsTradeLicense ? "4." : "3."} Surety Bond</div>
+                        <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
+                          Required because you selected: {profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.bonded).join(", ")}.
+                        </div>
+                        <div>
+                          <label htmlFor="pf-bond-amt" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Bond Amount ($)</label>
+                          <input id="pf-bond-amt" type="number" min="0" placeholder="e.g. 10000" value={profileForm.bond_amount} onChange={e => setProfileForm(f => ({ ...f, bond_amount: e.target.value }))} />
+                        </div>
+                        <div style={{ marginTop: 10 }}>
+                          <label htmlFor="pf-bond-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                            Bond Certificate {profileForm.bond_url ? "" : "*"}
+                          </label>
+                          <input id="pf-bond-file" type="file" accept="application/pdf,image/*" onChange={e => setProfileForm(f => ({ ...f, bond_file: e.target.files?.[0] || null }))} />
+                          {profileForm.bond_url && !profileForm.bond_file && (
+                            <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
+                              ✓ On file — <a href={profileForm.bond_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {profileError && (
                 <div style={{ color: "#f87171", fontSize: 13, background: "#3b1515", padding: "8px 12px", borderRadius: 8 }} role="alert">
@@ -3300,6 +3504,42 @@ function avatarInitials(name) {
               </div>
               <button type="submit" className="btn btn-gold" disabled={releaseBusy}>
                 {releaseBusy ? "Releasing..." : "Release & Relist Job"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DENY CONTRACTOR MODAL */}
+      {denyModal && (
+        <div className="modal-bg" onClick={() => setDenyModal(null)} role="presentation">
+          <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>DENY APPLICATION</h2>
+              <button className="btn btn-outline btn-sm" onClick={() => setDenyModal(null)} aria-label="Close">✕</button>
+            </div>
+            <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13 }}>
+              <div style={{ color: "#94a3b8" }}>Denying:</div>
+              <div style={{ fontWeight: 600 }}>{denyModal.name}</div>
+              <div style={{ color: "#94a3b8" }}>{contractorTrades(denyModal).join(" · ")}</div>
+            </div>
+            <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14 }}>
+              The contractor will see this reason in a banner on their profile and be able to correct it and reapply. Be specific about what needs to change.
+            </p>
+            <form onSubmit={submitDeny} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label htmlFor="deny-reason" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Reason for denial *</label>
+                <textarea
+                  id="deny-reason"
+                  rows={5}
+                  required
+                  placeholder="e.g. Business license is expired — please upload a current one. / Insurance carrier field is blank / License number doesn't match the state records..."
+                  value={denyReason}
+                  onChange={e => setDenyReason(e.target.value)}
+                />
+              </div>
+              <button type="submit" className="btn btn-gold" disabled={denyBusy}>
+                {denyBusy ? "Sending..." : "Deny & Email Contractor"}
               </button>
             </form>
           </div>
