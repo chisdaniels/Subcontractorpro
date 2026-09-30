@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase";
 
-const FALLBACK_TRADES = ["General Contractor", "Plumber", "Electrician", "Roofer", "Carpenter", "Mason", "Flooring", "Cabinets", "Countertops", "Landscaping", "Dirt Work", "Painting", "Sheetrock"];
+const FALLBACK_TRADES = ["General Contractor", "Plumber", "Electrician", "Roofer", "Carpenter", "Mason", "Flooring Installer", "Cabinets", "Countertops", "Landscaping", "Dirt Work", "Painting", "Sheetrock"];
 
 const AVATAR_COLORS = { IR: "#b45309", BS: "#0369a1", VP: "#7c3aed", AR: "#b91c1c", CC: "#047857", TK: "#374151" };
 
