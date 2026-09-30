@@ -222,7 +222,9 @@ export default function App() {
   const [profileForm, setProfileForm] = useState({
     name: "", trades: ["General Contractor"], location: "", hourly: "", bio: "", tags: "", website: "",
     business_license_number: "", business_license_url: "", business_license_file: null,
-    license_type: "", license_number: "", license_url: "", license_file: null,
+    // trade_licenses is keyed by trade name (e.g. "Electrician") and holds
+    // { number: string, url: string, file: File | null } for each licensed trade the contractor picked.
+    trade_licenses: {},
     insurance_carrier: "", insurance_expires_at: "", insurance_url: "", insurance_file: null,
     bond_amount: "", bond_url: "", bond_file: null,
   });
@@ -1136,14 +1138,16 @@ function avatarInitials(name) {
       if (!profileForm.insurance_carrier.trim()) throw new Error("Insurance carrier is required.");
       if (!profileForm.insurance_expires_at)     throw new Error("Insurance expiration date is required.");
 
-      // Trade-specific: trade license if the trade needs it.
-      if (req.needsTradeLicense) {
-        const hasTradeLicense = !!(profileForm.license_url || profileForm.license_file);
-        if (!hasTradeLicense) {
-          throw new Error(`Upload your ${req.tradeLicenseNames.join(" / ")} to accept ${profileForm.trades.join(", ")} work.`);
+      // Trade-specific: one license per licensed trade.
+      const licensedTrades = profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.tradeLicense);
+      for (const t of licensedTrades) {
+        const entry = profileForm.trade_licenses[t] || {};
+        if (!entry.url && !entry.file) {
+          throw new Error(`Upload your ${TRADE_REQUIREMENTS[t].tradeLicense} for ${t}.`);
         }
-        if (!profileForm.license_number.trim()) throw new Error("Trade license number is required.");
-        if (!profileForm.license_type.trim())   throw new Error("Trade license type is required.");
+        if (!entry.number || !String(entry.number).trim()) {
+          throw new Error(`Enter the license number for your ${TRADE_REQUIREMENTS[t].tradeLicense}.`);
+        }
       }
 
       // Trade-specific: surety bond.
@@ -1153,13 +1157,28 @@ function avatarInitials(name) {
       }
 
       let business_license_url = profileForm.business_license_url;
-      let license_url          = profileForm.license_url;
       let insurance_url        = profileForm.insurance_url;
       let bond_url             = profileForm.bond_url;
       if (profileForm.business_license_file) business_license_url = await uploadCredential(profileForm.business_license_file, "business-license");
-      if (profileForm.license_file)          license_url          = await uploadCredential(profileForm.license_file,          "trade-license");
       if (profileForm.insurance_file)        insurance_url        = await uploadCredential(profileForm.insurance_file,        "insurance");
       if (profileForm.bond_file)             bond_url             = await uploadCredential(profileForm.bond_file,             "bond");
+
+      // Upload any new per-trade licenses and build the final JSONB shape
+      // for the row (only include trades whose license was actually
+      // required — deselecting a trade should drop its entry).
+      const trade_licenses = {};
+      for (const t of licensedTrades) {
+        const entry = profileForm.trade_licenses[t] || {};
+        let url = entry.url;
+        if (entry.file) {
+          url = await uploadCredential(entry.file, `trade-license-${t.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+        }
+        trade_licenses[t] = {
+          number: String(entry.number || "").trim(),
+          url,
+          type: TRADE_REQUIREMENTS[t].tradeLicense,
+        };
+      }
 
       const row = {
         user_id: user.id,
@@ -1175,9 +1194,13 @@ function avatarInitials(name) {
         available: true,
         business_license_number: profileForm.business_license_number.trim(),
         business_license_url,
-        license_type:            req.needsTradeLicense ? profileForm.license_type.trim() : null,
-        license_number:          req.needsTradeLicense ? profileForm.license_number.trim() : null,
-        license_url:             req.needsTradeLicense ? license_url : null,
+        trade_licenses,
+        // Keep the legacy license_* fields in sync with the first trade
+        // license so older UI (contractor detail modal, admin cards) still
+        // shows something without a schema migration.
+        license_type:            licensedTrades[0] ? TRADE_REQUIREMENTS[licensedTrades[0]].tradeLicense : null,
+        license_number:          licensedTrades[0] ? trade_licenses[licensedTrades[0]].number : null,
+        license_url:             licensedTrades[0] ? trade_licenses[licensedTrades[0]].url    : null,
         insurance_carrier:       profileForm.insurance_carrier.trim(),
         insurance_expires_at:    profileForm.insurance_expires_at,
         insurance_url,
@@ -1234,10 +1257,13 @@ function avatarInitials(name) {
       business_license_number: myContractor?.business_license_number ?? "",
       business_license_url:    myContractor?.business_license_url ?? "",
       business_license_file:   null,
-      license_type:            myContractor?.license_type ?? "",
-      license_number:          myContractor?.license_number ?? "",
-      license_url:             myContractor?.license_url ?? "",
-      license_file:            null,
+      // Seed trade_licenses from the row's JSONB, augmenting each entry with a null file slot.
+      trade_licenses: Object.fromEntries(
+        Object.entries(myContractor?.trade_licenses || {}).map(([trade, tl]) => [
+          trade,
+          { number: tl?.number || "", url: tl?.url || "", type: tl?.type || (TRADE_REQUIREMENTS[trade]?.tradeLicense || ""), file: null },
+        ])
+      ),
       insurance_carrier:       myContractor?.insurance_carrier ?? "",
       insurance_expires_at:    myContractor?.insurance_expires_at ?? "",
       insurance_url:           myContractor?.insurance_url ?? "",
@@ -2413,12 +2439,30 @@ function avatarInitials(name) {
                       </div>
                     </div>
                     <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 13, lineHeight: 1.7 }}>
-                      <div>
-                        <strong>{c.license_type || "License"}</strong>
-                        {c.license_number ? ` · #${c.license_number}` : ""}
-                        {" · "}
-                        <a href={c.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view license</a>
-                      </div>
+                      {c.business_license_url && (
+                        <div>
+                          <strong>Business License</strong>
+                          {c.business_license_number ? ` · #${c.business_license_number}` : ""}
+                          {" · "}
+                          <a href={c.business_license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a>
+                        </div>
+                      )}
+                      {Object.entries(c.trade_licenses || {}).map(([trade, tl]) => (
+                        <div key={trade}>
+                          <strong>{tl.type || "Trade License"}</strong>
+                          <span style={{ color: "#94a3b8" }}> · {trade}</span>
+                          {tl.number ? ` · #${tl.number}` : ""}
+                          {tl.url && <> · <a href={tl.url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a></>}
+                        </div>
+                      ))}
+                      {(!c.trade_licenses || Object.keys(c.trade_licenses).length === 0) && c.license_url && (
+                        <div>
+                          <strong>{c.license_type || "Trade License"}</strong>
+                          {c.license_number ? ` · #${c.license_number}` : ""}
+                          {" · "}
+                          <a href={c.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a>
+                        </div>
+                      )}
                       <div>
                         <strong>Insurance</strong>
                         {c.insurance_carrier ? ` · ${c.insurance_carrier}` : ""}
@@ -2426,6 +2470,14 @@ function avatarInitials(name) {
                         {" · "}
                         <a href={c.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view COI</a>
                       </div>
+                      {c.bond_url && (
+                        <div>
+                          <strong>Bond</strong>
+                          {c.bond_amount ? ` · $${Number(c.bond_amount).toLocaleString()}` : ""}
+                          {" · "}
+                          <a href={c.bond_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view</a>
+                        </div>
+                      )}
                     </div>
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <button className="btn btn-gold btn-sm" onClick={() => adminSetVerified(c, true)} disabled={adminBusy}>
@@ -2467,7 +2519,10 @@ function avatarInitials(name) {
                         </div>
                         <div style={{ background: "#0f172a", borderRadius: 8, padding: 10, fontSize: 12, lineHeight: 1.7, color: "#f1f5f9", marginBottom: 10 }}>
                           {c.business_license_url && <div><strong>Business License</strong>{c.business_license_number ? ` · #${c.business_license_number}` : ""} · <a href={c.business_license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
-                          {c.license_url && <div><strong>{c.license_type || "Trade License"}</strong>{c.license_number ? ` · #${c.license_number}` : ""} · <a href={c.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
+                          {Object.entries(c.trade_licenses || {}).map(([trade, tl]) => (
+                            <div key={trade}><strong>{tl.type || "Trade License"}</strong> <span style={{ color: "#94a3b8" }}>· {trade}</span>{tl.number ? ` · #${tl.number}` : ""}{tl.url && <> · <a href={tl.url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></>}</div>
+                          ))}
+                          {(!c.trade_licenses || Object.keys(c.trade_licenses).length === 0) && c.license_url && <div><strong>{c.license_type || "Trade License"}</strong>{c.license_number ? ` · #${c.license_number}` : ""} · <a href={c.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
                           {c.insurance_url && <div><strong>Insurance</strong>{c.insurance_carrier ? ` · ${c.insurance_carrier}` : ""}{c.insurance_expires_at ? ` · expires ${c.insurance_expires_at}` : ""} · <a href={c.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
                           {c.bond_url && <div><strong>Bond</strong>{c.bond_amount ? ` · $${Number(c.bond_amount).toLocaleString()}` : ""} · <a href={c.bond_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>view</a></div>}
                         </div>
@@ -3175,41 +3230,59 @@ function avatarInitials(name) {
                       </div>
                     </div>
 
-                    {/* Trade License — required only if any selected trade needs one */}
-                    {req.needsTradeLicense && (
-                      <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14, border: "1px solid #f59e0b" }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>3. Trade License</div>
-                        <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
-                          Required because you selected: {profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.tradeLicense).join(", ")}. Upload your {req.tradeLicenseNames.join(" or ")}.
-                        </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="job-grid">
-                          <div>
-                            <label htmlFor="pf-lic-type" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>License Type *</label>
-                            <input id="pf-lic-type" required placeholder={req.tradeLicenseNames[0]} value={profileForm.license_type} onChange={e => setProfileForm(f => ({ ...f, license_type: e.target.value }))} />
+                    {/* Trade Licenses — one card per licensed trade the contractor selected */}
+                    {profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.tradeLicense).map((t, i) => {
+                      const licType = TRADE_REQUIREMENTS[t].tradeLicense;
+                      const entry = profileForm.trade_licenses[t] || { number: "", url: "", type: licType, file: null };
+                      const updateEntry = (patch) => setProfileForm(f => ({
+                        ...f,
+                        trade_licenses: { ...f.trade_licenses, [t]: { ...entry, type: licType, ...patch } },
+                      }));
+                      return (
+                        <div key={t} style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14, border: "1px solid #f59e0b" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>
+                            {i + 3}. {licType} <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 12 }}>(for {t})</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
+                            Required because you registered for {t}.
                           </div>
                           <div>
-                            <label htmlFor="pf-lic-num" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>License Number *</label>
-                            <input id="pf-lic-num" required placeholder="e.g. TX-123456" value={profileForm.license_number} onChange={e => setProfileForm(f => ({ ...f, license_number: e.target.value }))} />
+                            <label htmlFor={`pf-tl-num-${t}`} style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>License Number *</label>
+                            <input
+                              id={`pf-tl-num-${t}`}
+                              required
+                              placeholder="e.g. TX-123456"
+                              value={entry.number}
+                              onChange={e => updateEntry({ number: e.target.value })}
+                            />
+                          </div>
+                          <div style={{ marginTop: 10 }}>
+                            <label htmlFor={`pf-tl-file-${t}`} style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                              License Document {entry.url ? "" : "*"}
+                            </label>
+                            <input
+                              id={`pf-tl-file-${t}`}
+                              type="file"
+                              accept="application/pdf,image/*"
+                              onChange={e => updateEntry({ file: e.target.files?.[0] || null })}
+                            />
+                            {entry.url && !entry.file && (
+                              <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
+                                ✓ On file — <a href={entry.url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div style={{ marginTop: 10 }}>
-                          <label htmlFor="pf-lic-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
-                            Trade License Document {profileForm.license_url ? "" : "*"}
-                          </label>
-                          <input id="pf-lic-file" type="file" accept="application/pdf,image/*" onChange={e => setProfileForm(f => ({ ...f, license_file: e.target.files?.[0] || null }))} />
-                          {profileForm.license_url && !profileForm.license_file && (
-                            <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
-                              ✓ On file — <a href={profileForm.license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })}
 
                     {/* Surety Bond — required only for trades that need bonding */}
-                    {req.needsBond && (
+                    {req.needsBond && (() => {
+                      const licenseCount = profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.tradeLicense).length;
+                      const bondNumber = 3 + licenseCount;
+                      return (
                       <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 4, border: "1px solid #f59e0b" }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>{req.needsTradeLicense ? "4." : "3."} Surety Bond</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>{bondNumber}. Surety Bond</div>
                         <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
                           Required because you selected: {profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.bonded).join(", ")}.
                         </div>
@@ -3229,7 +3302,8 @@ function avatarInitials(name) {
                           )}
                         </div>
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 );
               })()}
