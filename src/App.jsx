@@ -336,7 +336,6 @@ export default function App() {
     r.name, { tradeLicense: r.trade_license_label || null, bonded: !!r.requires_bond },
   ])), [catalogRaw.services]);
   const requirementsFor = makeRequirementsFor(tradeReqMap);
-  const TRADE_REQUIREMENTS = tradeReqMap;
 
   function licensingSummary(serviceName, location) {
     const { items, stateCode } = resolveRequirements(catalogRaw.rules, serviceName, location);
@@ -886,16 +885,13 @@ export default function App() {
       if (!supportInput.subject.trim() || !supportInput.body.trim()) {
         throw new Error("Subject and message are both required.");
       }
-      const { data: t, error } = await supabase.from("support_tickets").insert({
-        user_id: user?.id ?? null,
-        email,
-        subject: supportInput.subject.trim(),
-        body:    supportInput.body.trim(),
-      }).select().single();
-      if (error) throw new Error(error.message);
-      supabase.functions
-        .invoke("notify-admins-support-ticket", { body: { ticketId: t.id } })
-        .catch(err => console.error("notify support failed:", err));
+      const { error } = await supabase.functions.invoke("notify-admins-support-ticket", {
+        body: { email, subject: supportInput.subject.trim(), body: supportInput.body.trim() },
+      });
+      if (error) {
+        const detail = await error.context?.json?.().catch(() => null);
+        throw new Error(detail?.error || "Couldn't send your request. Please try again.");
+      }
       setSupportModal(false);
       setSupportInput({ subject: "", body: "" });
       notify("Support request sent. We'll reply by email.");
@@ -1014,13 +1010,11 @@ export default function App() {
     if (error) { notify("Verify failed: " + error.message); return; }
     setContractors(prev => prev.map(c => c.id === contractor.id ? { ...c, ...payload } : c));
     // Email the contractor about the status change.
-    console.log("[TradeLinkPro] Invoking notify-contractor-verified for", contractor.id);
     try {
       const r = await supabase.functions.invoke("notify-contractor-verified", { body: { contractorId: contractor.id } });
-      console.log("[TradeLinkPro] verify-notify result:", r);
       if (r.error) notify("Verified in DB, but email failed: " + (r.error.message || r.error));
     } catch (err) {
-      console.error("[TradeLinkPro] verify-notify threw:", err);
+      console.error("verify-notify threw:", err);
     }
     notify(verified ? `Verified ${contractor.name}.` : `Un-verified ${contractor.name}.`);
   }
@@ -1030,10 +1024,8 @@ export default function App() {
     const email = adminInviteInput.trim().toLowerCase();
     if (!email) return;
     setAdminBusy(true);
-    // If the user already exists, add them straight to admins by looking up
-    // via a public "who's in admins.email" search. We can't query auth.users
-    // from the client, so just always insert into admin_invites; the DB
-    // trigger promotes them if they exist or on their next signup.
+    // A database trigger promotes the invitee right away if they already have
+    // an account; otherwise the invite waits until they sign up.
     const { error } = await supabase.from("admin_invites").insert({
       email,
       invited_by: user.id,
@@ -1041,9 +1033,15 @@ export default function App() {
     setAdminBusy(false);
     if (error) { notify("Invite failed: " + error.message); return; }
     setAdminInviteInput("");
-    const { data } = await supabase.from("admin_invites").select("*").order("created_at");
-    setAdminInvites(data || []);
-    notify(`Invite recorded for ${email}. They'll become admin on next login.`);
+    const [aRes, iRes] = await Promise.all([
+      supabase.from("admins").select("*").order("created_at"),
+      supabase.from("admin_invites").select("*").order("created_at"),
+    ]);
+    setAdminList(aRes.data || []);
+    setAdminInvites(iRes.data || []);
+    notify((aRes.data || []).some(a => a.email?.toLowerCase() === email)
+      ? `${email} is now an admin.`
+      : `Invite saved. ${email} becomes an admin when they sign up with that email.`);
   }
 
   async function adminRevokeInvite(email) {
@@ -1161,14 +1159,14 @@ function avatarInitials(name) {
       if (!profileForm.insurance_expires_at)     throw new Error("Insurance expiration date is required.");
 
       // Trade-specific: one license per licensed trade.
-      const licensedTrades = profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.tradeLicense);
+      const licensedTrades = profileForm.trades.filter(t => tradeReqMap[t]?.tradeLicense);
       for (const t of licensedTrades) {
         const entry = profileForm.trade_licenses[t] || {};
         if (!entry.url && !entry.file) {
-          throw new Error(`Upload your ${TRADE_REQUIREMENTS[t].tradeLicense} for ${t}.`);
+          throw new Error(`Upload your ${tradeReqMap[t].tradeLicense} for ${t}.`);
         }
         if (!entry.number || !String(entry.number).trim()) {
-          throw new Error(`Enter the license number for your ${TRADE_REQUIREMENTS[t].tradeLicense}.`);
+          throw new Error(`Enter the license number for your ${tradeReqMap[t].tradeLicense}.`);
         }
       }
 
@@ -1198,7 +1196,7 @@ function avatarInitials(name) {
         trade_licenses[t] = {
           number: String(entry.number || "").trim(),
           url,
-          type: TRADE_REQUIREMENTS[t].tradeLicense,
+          type: tradeReqMap[t].tradeLicense,
         };
       }
 
@@ -1220,7 +1218,7 @@ function avatarInitials(name) {
         // Keep the legacy license_* fields in sync with the first trade
         // license so older UI (contractor detail modal, admin cards) still
         // shows something without a schema migration.
-        license_type:            licensedTrades[0] ? TRADE_REQUIREMENTS[licensedTrades[0]].tradeLicense : null,
+        license_type:            licensedTrades[0] ? tradeReqMap[licensedTrades[0]].tradeLicense : null,
         license_number:          licensedTrades[0] ? trade_licenses[licensedTrades[0]].number : null,
         license_url:             licensedTrades[0] ? trade_licenses[licensedTrades[0]].url    : null,
         insurance_carrier:       profileForm.insurance_carrier.trim(),
@@ -1243,14 +1241,12 @@ function avatarInitials(name) {
       // Notify admins and the contractor. Awaited so a failure surfaces
       // to the user instead of silently disappearing.
       if (!data.verified) {
-        console.log("[TradeLinkPro] Invoking notify-admin-contractor-pending…");
         try {
           const result = await supabase.functions.invoke("notify-admin-contractor-pending");
-          console.log("[TradeLinkPro] notify result:", result);
           if (result.error) notify("Docs saved, but notification failed: " + (result.error.message || result.error));
           else if (result.data?.skipped) notify("Docs saved. Notification skipped: " + result.data.skipped);
         } catch (err) {
-          console.error("[TradeLinkPro] notify admin threw:", err);
+          console.error("notify admin threw:", err);
           notify("Docs saved, but notification threw: " + (err.message || err));
         }
       }
@@ -1283,7 +1279,7 @@ function avatarInitials(name) {
       trade_licenses: Object.fromEntries(
         Object.entries(myContractor?.trade_licenses || {}).map(([trade, tl]) => [
           trade,
-          { number: tl?.number || "", url: tl?.url || "", type: tl?.type || (TRADE_REQUIREMENTS[trade]?.tradeLicense || ""), file: null },
+          { number: tl?.number || "", url: tl?.url || "", type: tl?.type || (tradeReqMap[trade]?.tradeLicense || ""), file: null },
         ])
       ),
       insurance_carrier:       myContractor?.insurance_carrier ?? "",
@@ -1351,13 +1347,11 @@ function avatarInitials(name) {
     }
 
     // Email the customer with the news + a link back to messages.
-    console.log("[TradeLinkPro] Invoking notify-customer-job-accepted for job", jobId);
     try {
       const r = await supabase.functions.invoke("notify-customer-job-accepted", { body: { jobId } });
-      console.log("[TradeLinkPro] job-accepted email result:", r);
       if (r.error) notify("Job accepted, but email failed: " + (r.error.message || r.error));
     } catch (err) {
-      console.error("[TradeLinkPro] job-accepted email threw:", err);
+      console.error("job-accepted email threw:", err);
     }
   }
 
@@ -2137,10 +2131,8 @@ function avatarInitials(name) {
             ) : (
               <div style={{ display: "grid", gap: 12 }} role="list" aria-label="Open jobs">
                 {openJobsShown.map(j => {
-                  const minePicked  = false;
-                  const taken       = false;
                   return (
-                    <div key={j.id} className="card" style={{ padding: 20, opacity: taken ? 0.6 : 1 }} role="listitem">
+                    <div key={j.id} className="card" style={{ padding: 20 }} role="listitem">
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                         <div style={{ fontWeight: 700, fontSize: 17 }}>{j.title}</div>
                         {j.budget != null && (
@@ -2150,41 +2142,12 @@ function avatarInitials(name) {
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                         <span className="badge">{j.trade}</span>
                         <span className="badge">{j.location}</span>
-                        {minePicked && <span className="badge avail">✓ Accepted by you</span>}
-                        {taken && <span className="badge unavail">Accepted</span>}
                       </div>
                       <div style={{ fontSize: 12, color: "#64748b", marginBottom: j.description ? 10 : 0 }}>
                         Licensing — {licensingSummary(j.trade, j.location)}
                       </div>
                       {j.description && (
                         <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.55, marginBottom: 10 }}>{j.description}</p>
-                      )}
-                      {minePicked && (
-                        <div style={{ background: "#064e3b", border: "1px solid #047857", borderRadius: 10, padding: 14, marginBottom: 10 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#34d399", marginBottom: 8 }}>
-                            HOMEOWNER CONTACT
-                          </div>
-                          {j.homeowner_name && (
-                            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{j.homeowner_name}</div>
-                          )}
-                          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 13 }}>
-                            {j.homeowner_email && (
-                              <a href={`mailto:${j.homeowner_email}`} style={{ color: "#34d399", textDecoration: "underline" }}>
-                                ✉ {j.homeowner_email}
-                              </a>
-                            )}
-                            {j.homeowner_phone && (
-                              <a href={`tel:${j.homeowner_phone}`} style={{ color: "#34d399", textDecoration: "underline" }}>
-                                ☎ {j.homeowner_phone}
-                              </a>
-                            )}
-                          </div>
-                          {!j.homeowner_email && !j.homeowner_phone && (
-                            <div style={{ fontSize: 12, color: "#94a3b8" }}>
-                              No contact info on this job — homeowner posted before contact fields were added.
-                            </div>
-                          )}
-                        </div>
                       )}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                         <div style={{ color: "#475569", fontSize: 11 }}>
@@ -3123,7 +3086,7 @@ function avatarInitials(name) {
                       </div>
                     )}
                     {(() => {
-                      const noUpload = profileForm.trades.filter(t => !TRADE_REQUIREMENTS[t]?.tradeLicense);
+                      const noUpload = profileForm.trades.filter(t => !tradeReqMap[t]?.tradeLicense);
                       return noUpload.length > 0 ? (
                         <div style={{ fontSize: 12, color: "#94a3b8", background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14, lineHeight: 1.5 }}>
                           We don't ask for a trade license upload for {noUpload.join(", ")}. {REQUIREMENTS_FALLBACK} You're responsible for holding any license your work requires.
@@ -3189,8 +3152,8 @@ function avatarInitials(name) {
                     </div>
 
                     {/* Trade Licenses — one card per licensed trade the contractor selected */}
-                    {profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.tradeLicense).map((t, i) => {
-                      const licType = TRADE_REQUIREMENTS[t].tradeLicense;
+                    {profileForm.trades.filter(t => tradeReqMap[t]?.tradeLicense).map((t, i) => {
+                      const licType = tradeReqMap[t].tradeLicense;
                       const entry = profileForm.trade_licenses[t] || { number: "", url: "", type: licType, file: null };
                       const updateEntry = (patch) => setProfileForm(f => ({
                         ...f,
@@ -3236,13 +3199,13 @@ function avatarInitials(name) {
 
                     {/* Surety Bond — required only for trades that need bonding */}
                     {req.needsBond && (() => {
-                      const licenseCount = profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.tradeLicense).length;
+                      const licenseCount = profileForm.trades.filter(t => tradeReqMap[t]?.tradeLicense).length;
                       const bondNumber = 3 + licenseCount;
                       return (
                       <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 4, border: "1px solid #f59e0b" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>{bondNumber}. Surety Bond</div>
                         <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
-                          SubcontractorPros asks for a bond for: {profileForm.trades.filter(t => TRADE_REQUIREMENTS[t]?.bonded).join(", ")}.
+                          SubcontractorPros asks for a bond for: {profileForm.trades.filter(t => tradeReqMap[t]?.bonded).join(", ")}.
                         </div>
                         <div>
                           <label htmlFor="pf-bond-amt" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Bond Amount ($)</label>
