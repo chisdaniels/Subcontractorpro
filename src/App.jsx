@@ -1369,17 +1369,30 @@ function avatarInitials(name) {
 
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px" }}>
 
-        {isContractor && myContractor?.deactivated_at && (
-          <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#64748b" }}>
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: 2 }}>Your profile is off the board</div>
-              <div style={{ fontSize: 13, color: "#94a3b8" }}>Homeowners can't find you in search right now. Your account and history are preserved.</div>
+        {isContractor && myContractor?.deactivated_at && (() => {
+          const selfDeactivated = myContractor.deactivated_by === myContractor.user_id;
+          return (
+            <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: selfDeactivated ? "#64748b" : "#f87171" }}>
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: 2 }}>Your profile is off the board</div>
+                <div style={{ fontSize: 13, color: "#94a3b8" }}>
+                  {selfDeactivated
+                    ? "Homeowners can't find you in search right now. Your account and history are preserved."
+                    : "An admin has taken your profile off the board. Contact support if you'd like it reviewed for reactivation."}
+                </div>
+              </div>
+              {selfDeactivated ? (
+                <button className="btn btn-gold btn-sm" onClick={() => setContractorDeactivated(myContractor, false)}>
+                  Put me back on
+                </button>
+              ) : (
+                <button className="btn btn-outline btn-sm" onClick={() => setSupportModal(true)}>
+                  Contact Support
+                </button>
+              )}
             </div>
-            <button className="btn btn-gold btn-sm" onClick={() => setContractorDeactivated(myContractor, false)}>
-              Put me back on
-            </button>
-          </div>
-        )}
+          );
+        })()}
 
         {isContractor && !myContractor?.deactivated_at && !hasCredentialsOnFile(myContractor) && (
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f87171" }}>
@@ -2805,37 +2818,55 @@ function avatarInitials(name) {
                 {profileBusy ? "Saving..." : myContractor ? "Save Changes" : "Create Profile"}
               </button>
             </form>
-            {myContractor && (
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #334155" }}>
-                {myContractor.deactivated_at ? (
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-sm"
-                    onClick={() => { setContractorDeactivated(myContractor, false); setProfileModal(false); }}
-                    style={{ width: "100%" }}
-                  >
-                    Put my profile back on the board
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-sm"
-                    onClick={() => {
-                      if (confirm("Take yourself off the board? Your profile will be hidden from search. You keep your account and history and can turn it back on anytime.")) {
-                        setContractorDeactivated(myContractor, true);
-                        setProfileModal(false);
-                      }
-                    }}
-                    style={{ width: "100%", borderColor: "#f87171", color: "#fca5a5" }}
-                  >
-                    Take my profile off the board
-                  </button>
-                )}
-                <div style={{ fontSize: 11, color: "#64748b", marginTop: 8, textAlign: "center" }}>
-                  Accounts can't be deleted so nothing is ever lost. This just hides you from search.
+            {myContractor && (() => {
+              const isDeactivated = !!myContractor.deactivated_at;
+              const selfDeactivated = isDeactivated && myContractor.deactivated_by === myContractor.user_id;
+              return (
+                <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #334155" }}>
+                  {isDeactivated && !selfDeactivated ? (
+                    <>
+                      <div style={{ background: "#3b1515", border: "1px solid #7f1d1d", borderRadius: 8, padding: 12, fontSize: 13, color: "#fca5a5", textAlign: "center", marginBottom: 10 }}>
+                        Your profile was taken off the board by an admin. Only an admin can put it back on.
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => { setProfileModal(false); setSupportModal(true); }}
+                        style={{ width: "100%" }}
+                      >
+                        Contact Support
+                      </button>
+                    </>
+                  ) : isDeactivated ? (
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => { setContractorDeactivated(myContractor, false); setProfileModal(false); }}
+                      style={{ width: "100%" }}
+                    >
+                      Put my profile back on the board
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => {
+                        if (confirm("Take yourself off the board? Your profile will be hidden from search. You keep your account and history and can turn it back on anytime.")) {
+                          setContractorDeactivated(myContractor, true);
+                          setProfileModal(false);
+                        }
+                      }}
+                      style={{ width: "100%", borderColor: "#f87171", color: "#fca5a5" }}
+                    >
+                      Take my profile off the board
+                    </button>
+                  )}
+                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 8, textAlign: "center" }}>
+                    Accounts can't be deleted so nothing is ever lost. This just hides you from search.
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       )}
