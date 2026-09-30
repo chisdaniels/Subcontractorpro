@@ -71,6 +71,33 @@ Deno.serve(async (req) => {
       ? (/^https?:\/\//i.test(contractor.website) ? contractor.website : "https://" + contractor.website)
       : "";
 
+    // Build the trade-license rows. New contractors have per-trade licenses
+    // in the trade_licenses JSONB map; older ones still have a single
+    // license_url/type/number. Fall back to the legacy fields only when
+    // nothing lives in trade_licenses.
+    const tradeLicenseEntries = contractor.trade_licenses && Object.keys(contractor.trade_licenses).length > 0
+      ? Object.entries(contractor.trade_licenses).map(([trade, tl]) => ({
+          trade,
+          type:   tl?.type   || "Trade License",
+          number: tl?.number || "",
+          url:    tl?.url    || "",
+        }))
+      : (contractor.license_url ? [{
+          trade:  contractor.trade || "",
+          type:   contractor.license_type   || "Trade License",
+          number: contractor.license_number || "",
+          url:    contractor.license_url,
+        }] : []);
+    const tradeLicensesHtml = tradeLicenseEntries.map(e => `
+      <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
+        <strong>${escape(e.type)}</strong>${e.trade ? ` <span style="color:#065f46;">· ${escape(e.trade)}</span>` : ""}${e.number ? " &middot; #" + escape(e.number) : ""}
+      </td></tr>
+      ${e.url ? `<tr><td style="padding:0 0 6px;"><a href="${e.url}" style="color:#047857;font-size:14px;font-weight:600;">View ${escape(e.type)}</a></td></tr>` : ""}
+    `).join("");
+    const tradeLicensesText = tradeLicenseEntries.map(e =>
+      `${e.type}${e.trade ? ` (${e.trade})` : ""}${e.number ? " #" + e.number : ""}${e.url ? "\n  Doc: " + e.url : ""}`
+    ).join("\n");
+
     // Table-based layout for maximum email-client compatibility (Yahoo,
     // Gmail, Outlook). Divs and modern CSS often get stripped or reflowed.
     const html = `
@@ -91,16 +118,23 @@ Deno.serve(async (req) => {
       <tr><td style="padding:0 24px 16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ecfdf5;border:2px solid #10b981;border-radius:10px;">
           <tr><td style="padding:16px;">
-            <div style="color:#065f46;font-weight:700;font-size:13px;letter-spacing:1px;margin-bottom:10px;">VERIFIED LICENSE &amp; INSURANCE</div>
+            <div style="color:#065f46;font-weight:700;font-size:13px;letter-spacing:1px;margin-bottom:10px;">VERIFIED CREDENTIALS</div>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              ${contractor.business_license_url ? `
               <tr><td style="padding:4px 0;color:#0f172a;font-size:14px;">
-                <strong>${escape(contractor.license_type || "License")}</strong>${contractor.license_number ? " &middot; #" + escape(contractor.license_number) : ""}
+                <strong>Business License</strong>${contractor.business_license_number ? " &middot; #" + escape(contractor.business_license_number) : ""}
               </td></tr>
-              ${contractor.license_url ? `<tr><td style="padding:0 0 8px;"><a href="${contractor.license_url}" style="color:#047857;font-size:14px;font-weight:600;">View license document</a></td></tr>` : ""}
-              <tr><td style="padding:4px 0;color:#0f172a;font-size:14px;">
+              <tr><td style="padding:0 0 6px;"><a href="${contractor.business_license_url}" style="color:#047857;font-size:14px;font-weight:600;">View business license</a></td></tr>` : ""}
+              ${tradeLicensesHtml}
+              <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
                 <strong>Insurance</strong>${contractor.insurance_carrier ? " &middot; " + escape(contractor.insurance_carrier) : ""}${contractor.insurance_expires_at ? " &middot; expires " + escape(contractor.insurance_expires_at) : ""}
               </td></tr>
-              ${contractor.insurance_url ? `<tr><td style="padding:0;"><a href="${contractor.insurance_url}" style="color:#047857;font-size:14px;font-weight:600;">View certificate of insurance</a></td></tr>` : ""}
+              ${contractor.insurance_url ? `<tr><td style="padding:0 0 6px;"><a href="${contractor.insurance_url}" style="color:#047857;font-size:14px;font-weight:600;">View certificate of insurance</a></td></tr>` : ""}
+              ${contractor.bond_url ? `
+              <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
+                <strong>Surety Bond</strong>${contractor.bond_amount ? " &middot; $" + Number(contractor.bond_amount).toLocaleString() : ""}
+              </td></tr>
+              <tr><td style="padding:0;"><a href="${contractor.bond_url}" style="color:#047857;font-size:14px;font-weight:600;">View bond certificate</a></td></tr>` : ""}
             </table>
           </td></tr>
         </table>
@@ -156,8 +190,14 @@ Deno.serve(async (req) => {
       contractor.website ? `Website: ${contractor.website}` : "",
       "",
       "VERIFIED CREDENTIALS",
-      `${contractor.license_type || "License"}${contractor.license_number ? " #" + contractor.license_number : ""}${contractor.license_url ? "\n  License doc: " + contractor.license_url : ""}`,
+      contractor.business_license_url
+        ? `Business License${contractor.business_license_number ? " #" + contractor.business_license_number : ""}\n  Doc: ${contractor.business_license_url}`
+        : "",
+      tradeLicensesText,
       `Insurance${contractor.insurance_carrier ? " · " + contractor.insurance_carrier : ""}${contractor.insurance_expires_at ? " (expires " + contractor.insurance_expires_at + ")" : ""}${contractor.insurance_url ? "\n  COI: " + contractor.insurance_url : ""}`,
+      contractor.bond_url
+        ? `Surety Bond${contractor.bond_amount ? " · $" + Number(contractor.bond_amount).toLocaleString() : ""}\n  Doc: ${contractor.bond_url}`
+        : "",
       "",
       "They also sent you an intro message in the app. Log in to reply.",
       appUrl ? `Open Subcontractor Pros: ${appUrl}` : "",
