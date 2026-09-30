@@ -450,15 +450,19 @@ export default function App() {
   // database allows: the pro, admins, and the customer who hired them.
   async function withContractorDetails(rows) {
     if (!rows?.length) return [];
-    const [bRes, cRes] = await Promise.all([
+    const none = Promise.resolve({ data: [] });
+    const [bRes, cRes, dRes] = await Promise.all([
       supabase.from("contractor_badges").select("*"),
-      user ? supabase.from("contractor_credentials").select("*") : Promise.resolve({ data: [] }),
+      user ? supabase.from("contractor_credentials").select("*") : none,
+      user ? supabase.from("contractor_denials").select("*") : none,
     ]);
     if (bRes.error) console.error("badges load failed:", bRes.error);
     if (cRes.error) console.error("credentials load failed:", cRes.error);
+    if (dRes.error) console.error("denials load failed:", dRes.error);
     const badges = Object.fromEntries((bRes.data || []).map(b => [b.contractor_id, b.verified]));
     const creds = Object.fromEntries((cRes.data || []).map(({ contractor_id, ...rest }) => [contractor_id, rest]));
-    return rows.map(c => ({ ...c, ...(creds[c.id] || {}), verified_credentials: badges[c.id] || [] }));
+    const denials = Object.fromEntries((dRes.data || []).map(d => [d.contractor_id, { denied_at: d.denied_at, denied_by: d.denied_by, denial_reason: d.reason }]));
+    return rows.map(c => ({ ...c, ...(creds[c.id] || {}), ...(denials[c.id] || {}), verified_credentials: badges[c.id] || [] }));
   }
 
   async function withJobContacts(rows) {
@@ -1003,17 +1007,20 @@ export default function App() {
     if (!reason) { notify("Give the contractor a reason so they know what to fix."); return; }
     setDenyBusy(true);
     try {
-      const payload = {
+      const { error: denyErr } = await supabase.from("contractor_denials").upsert({
+        contractor_id: denyModal.id,
         denied_at: new Date().toISOString(),
         denied_by: user.id,
-        denial_reason: reason,
-        verified: false,
-        verified_at: null,
-        verified_by: null,
-      };
-      const { error } = await supabase.from("contractors").update(payload).eq("id", denyModal.id);
-      if (error) throw new Error(error.message);
-      setContractors(prev => prev.map(c => c.id === denyModal.id ? { ...c, ...payload } : c));
+        reason,
+      }, { onConflict: "contractor_id" });
+      if (denyErr) throw new Error(denyErr.message);
+      if (denyModal.verified) {
+        const { error } = await supabase.from("contractors")
+          .update({ verified: false, verified_at: null, verified_by: null })
+          .eq("id", denyModal.id);
+        if (error) throw new Error(error.message);
+      }
+      await loadContractors();
       supabase.functions
         .invoke("notify-contractor-denied", { body: { contractorId: denyModal.id } })
         .catch(err => console.error("notify denied failed:", err));
@@ -1032,9 +1039,13 @@ export default function App() {
       ? { verified: true,  verified_at: new Date().toISOString(), verified_by: user.id }
       : { verified: false, verified_at: null, verified_by: null };
     const { error } = await supabase.from("contractors").update(payload).eq("id", contractor.id);
+    if (!error && verified && contractor.denied_at) {
+      const { error: clearErr } = await supabase.from("contractor_denials").delete().eq("contractor_id", contractor.id);
+      if (clearErr) console.error("clearing denial failed:", clearErr);
+    }
     setAdminBusy(false);
     if (error) { notify("Verify failed: " + error.message); return; }
-    setContractors(prev => prev.map(c => c.id === contractor.id ? { ...c, ...payload } : c));
+    await loadContractors();
     // Email the contractor about the status change.
     try {
       const r = await supabase.functions.invoke("notify-contractor-verified", { body: { contractorId: contractor.id } });
@@ -1235,9 +1246,6 @@ function avatarInitials(name) {
         website: profileForm.website.trim() || null,
         avatar: avatarInitials(profileForm.name),
         available: true,
-        // If they had been denied, clear the denial when they resubmit so
-        // admins see them in "Pending Verification" again.
-        ...(myContractor?.denied_at ? { denied_at: null, denied_by: null, denial_reason: null } : {}),
       };
       const { data, error } = myContractor
         ? await supabase.from("contractors").update(row).eq("id", myContractor.id).select().single()
@@ -1258,6 +1266,12 @@ function avatarInitials(name) {
         bond_path:               req.needsBond ? bond_path : null,
       }, { onConflict: "contractor_id" });
       if (credErr) throw new Error("Saving your documents failed: " + credErr.message);
+
+      // Resubmitting clears a denial so admins see them in "Pending Verification" again.
+      if (myContractor?.denied_at) {
+        const { error: clearErr } = await supabase.from("contractor_denials").delete().eq("contractor_id", data.id);
+        if (clearErr) throw new Error("Couldn't resubmit for review: " + clearErr.message);
+      }
 
       setMyContractor((await withContractorDetails([data]))[0]);
       setProfileModal(false);

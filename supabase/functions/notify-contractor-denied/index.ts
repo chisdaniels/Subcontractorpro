@@ -54,9 +54,11 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get("APP_URL") || "";
     if (!apiKey || !from) return json({ error: "secrets missing" }, 500);
 
+    const { data: denial } = await admin
+      .from("contractor_denials").select("reason").eq("contractor_id", contractor.id).maybeSingle();
     const subject = `Subcontractor Pros — your application needs attention`;
-    const reasonHtml = escape(contractor.denial_reason || "(no reason recorded)");
-    const reasonText = contractor.denial_reason || "(no reason recorded)";
+    const reasonHtml = escape(denial?.reason || "(no reason recorded)");
+    const reasonText = denial?.reason || "(no reason recorded)";
 
     const html = `
 <!doctype html>

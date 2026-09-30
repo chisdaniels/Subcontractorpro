@@ -563,7 +563,9 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
               ? `profile approval change on ${proName}`
               : a.table_name === "contractor_credentials"
                 ? `credential review on ${proName}`
-                : `${a.table_name.replace(/_/g, " ")} ${a.action}: ${a.row_key}`;
+                : a.table_name === "contractor_denials"
+                  ? `denial ${a.action === "delete" ? "cleared" : "recorded"} for ${proName}`
+                  : `${a.table_name.replace(/_/g, " ")} ${a.action}: ${a.row_key}`;
             return (
               <div key={a.id} style={{ padding: "4px 0", borderBottom: "1px solid #1e293b", color: "#cbd5e1" }}>
                 <span style={{ color: "#64748b" }}>{new Date(a.created_at).toLocaleString()}</span> · {who} · {target}
