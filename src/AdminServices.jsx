@@ -558,9 +558,12 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
           {audit.length === 0 && <div style={{ color: "#475569" }}>No changes recorded yet.</div>}
           {audit.map(a => {
             const who = adminList.find(x => x.user_id === a.actor)?.email || (a.actor ? a.actor.slice(0, 8) : "system");
+            const proName = contractors.find(c => String(c.id) === a.row_key)?.name || `contractor ${a.row_key}`;
             const target = a.table_name === "contractors"
-              ? `credential/verification change on ${contractors.find(c => String(c.id) === a.row_key)?.name || `contractor ${a.row_key}`}`
-              : `${a.table_name.replace(/_/g, " ")} ${a.action}: ${a.row_key}`;
+              ? `profile approval change on ${proName}`
+              : a.table_name === "contractor_credentials"
+                ? `credential review on ${proName}`
+                : `${a.table_name.replace(/_/g, " ")} ${a.action}: ${a.row_key}`;
             return (
               <div key={a.id} style={{ padding: "4px 0", borderBottom: "1px solid #1e293b", color: "#cbd5e1" }}>
                 <span style={{ color: "#64748b" }}>{new Date(a.created_at).toLocaleString()}</span> · {who} · {target}

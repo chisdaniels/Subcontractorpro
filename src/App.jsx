@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "./lib/supabase";
 import { ServicePicker, ServiceSelect, serviceFilterMatches } from "./ServicePicker";
 import AdminServices from "./AdminServices";
-import { CredentialList, CredentialReviewPanel, VerifiedCredentialBadges, VERIFIED_PRO_MEANING } from "./credentials";
+import { CredentialList, CredentialReviewPanel, DocLink, VerifiedCredentialBadges, VerifiedCredentialsSummary, VERIFIED_PRO_MEANING } from "./credentials";
 import {
   REQUIREMENTS_FALLBACK, buildCatalog, contractorCredentials, describeRequirement, resolveRequirements,
   searchCatalog, verifiedCredentialKinds,
@@ -216,12 +216,12 @@ export default function App() {
   const [profileModal, setProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({
     name: "", trades: [], location: "", hourly: "", bio: "", tags: "", website: "",
-    business_license_number: "", business_license_url: "", business_license_file: null,
+    business_license_number: "", business_license_path: "", business_license_file: null,
     // trade_licenses is keyed by trade name (e.g. "Electrician") and holds
     // { number: string, url: string, file: File | null } for each licensed trade the contractor picked.
     trade_licenses: {},
-    insurance_carrier: "", insurance_expires_at: "", insurance_url: "", insurance_file: null,
-    bond_amount: "", bond_url: "", bond_file: null,
+    insurance_carrier: "", insurance_expires_at: "", insurance_path: "", insurance_file: null,
+    bond_amount: "", bond_path: "", bond_file: null,
   });
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState(null);
@@ -418,12 +418,12 @@ export default function App() {
         .eq("posted_by", user.id)
         .order("created_at", { ascending: false });
       if (error) { console.error("my jobs load failed:", error); return; }
-      const visible = (rows || []).filter(j => !j.deleted_at || j.deleted_by !== user.id);
+      const visible = await withJobContacts((rows || []).filter(j => !j.deleted_at || j.deleted_by !== user.id));
       const accepterIds = visible.map(j => j.accepted_by).filter(Boolean);
       let accepters = [];
       if (accepterIds.length) {
         const { data } = await supabase.from("contractors").select("*").in("user_id", accepterIds);
-        accepters = data || [];
+        accepters = await withContractorDetails(data || []);
       }
       const enriched = visible.map(j => ({
         ...j,
@@ -442,9 +442,38 @@ export default function App() {
         .eq("user_id", user.id)
         .maybeSingle();
       if (error) console.error("my contractor load failed:", error);
-      setMyContractor(data ?? null);
+      setMyContractor(data ? (await withContractorDetails([data]))[0] : null);
     })();
   }, [user]);
+
+  // Private rows (credentials, homeowner contacts) only come back where the
+  // database allows: the pro, admins, and the customer who hired them.
+  async function withContractorDetails(rows) {
+    if (!rows?.length) return [];
+    const [bRes, cRes] = await Promise.all([
+      supabase.from("contractor_badges").select("*"),
+      user ? supabase.from("contractor_credentials").select("*") : Promise.resolve({ data: [] }),
+    ]);
+    if (bRes.error) console.error("badges load failed:", bRes.error);
+    if (cRes.error) console.error("credentials load failed:", cRes.error);
+    const badges = Object.fromEntries((bRes.data || []).map(b => [b.contractor_id, b.verified]));
+    const creds = Object.fromEntries((cRes.data || []).map(({ contractor_id, ...rest }) => [contractor_id, rest]));
+    return rows.map(c => ({ ...c, ...(creds[c.id] || {}), verified_credentials: badges[c.id] || [] }));
+  }
+
+  async function withJobContacts(rows) {
+    if (!user || !rows?.length) return rows || [];
+    const { data, error } = await supabase.from("job_contacts").select("*");
+    if (error) console.error("job contacts load failed:", error);
+    const contacts = Object.fromEntries((data || []).map(({ job_id, ...rest }) => [job_id, rest]));
+    return rows.map(j => ({ ...j, ...(contacts[j.id] || {}) }));
+  }
+
+  async function loadContractors() {
+    const { data, error } = await supabase.from("contractors").select("*").order("id");
+    if (error) console.error("contractors load failed:", error);
+    setContractors(await withContractorDetails(data || []));
+  }
 
   async function loadJobs() {
     // Load all jobs (including deleted) — display filters as appropriate:
@@ -454,30 +483,26 @@ export default function App() {
       .from("jobs").select("*")
       .order("created_at", { ascending: false });
     if (error) console.error("jobs load failed:", error);
-    setJobs(data || []);
+    setJobs(await withJobContacts(data || []));
   }
 
   useEffect(() => {
-    async function load() {
-      const [cRes, rRes] = await Promise.all([
-        supabase.from("contractors").select("*").order("id"),
-        supabase.from("reviews").select("*").order("created_at"),
-      ]);
-      if (cRes.error) console.error("contractors load failed:", cRes.error);
-      if (rRes.error) console.error("reviews load failed:", rRes.error);
-      const cs = cRes.data || [];
-      setContractors(cs);
-
+    (async () => {
+      const { data, error } = await supabase.from("reviews").select("*").order("created_at");
+      if (error) console.error("reviews load failed:", error);
       const reviewsByContractor = {};
-      for (const r of rRes.data || []) {
+      for (const r of data || []) {
         (reviewsByContractor[r.contractor_id] ||= []).push(r);
       }
       setReviews(reviewsByContractor);
-
-      loadJobs();
-    }
-    load();
+    })();
   }, []);
+
+  useEffect(() => {
+    if (authState === "loading") return;
+    loadContractors();
+    loadJobs();
+  }, [authState, user?.id]);
 
   useEffect(() => {
     if (!user) { setMessages({}); return; }
@@ -664,12 +689,7 @@ export default function App() {
     setMyReviewedJobIds(prev => new Set(prev).add(jobId));
     setReviewInput({ stars: 5, text: "" });
     setReviewTarget(null);
-    const { data: cs } = await supabase.from("contractors").select("*").order("id");
-    if (cs) {
-      setContractors(cs);
-      const mine = cs.find(c => c.user_id === user.id);
-      if (mine) setMyContractor(mine);
-    }
+    await loadContractors();
     notify("Review submitted!");
   }
 
@@ -683,15 +703,23 @@ export default function App() {
       location: jobForm.location,
       budget: jobForm.budget ? Number(jobForm.budget) : null,
       description: jobForm.desc,
+      posted_by: user.id,
+      group_id: groupId,
+    }));
+    const { data: created, error } = await supabase.from("jobs").insert(rows).select("id");
+    if (error) {
+      notify("Failed to post job: " + error.message);
+      return;
+    }
+    const { error: contactErr } = await supabase.from("job_contacts").insert(created.map(j => ({
+      job_id: j.id,
       homeowner_name: jobForm.homeowner_name.trim(),
       homeowner_email: jobForm.homeowner_email.trim(),
       homeowner_phone: jobForm.homeowner_phone.trim() || null,
-      posted_by: user?.id ?? null,
-      group_id: groupId,
-    }));
-    const { error } = await supabase.from("jobs").insert(rows);
-    if (error) {
-      notify("Failed to post job: " + error.message);
+    })));
+    if (contactErr) {
+      notify("Job posted, but saving your contact info failed: " + contactErr.message);
+      await loadJobs();
       return;
     }
     if (user) {
@@ -771,8 +799,7 @@ export default function App() {
       setMyReviewedJobIds(prev => new Set(prev).add(completeModal.id));
       setCompleteModal(null);
       await loadJobs();
-      const { data: cs } = await supabase.from("contractors").select("*").order("id");
-      if (cs) setContractors(cs);
+      await loadContractors();
       notify("Job marked complete and review posted. Thanks!");
     } catch (err) {
       notify(err.message);
@@ -835,8 +862,7 @@ export default function App() {
       return next;
     });
     await loadJobs();
-    const { data: cs } = await supabase.from("contractors").select("*").order("id");
-    if (cs) setContractors(cs);
+    await loadContractors();
     notify("Job reopened. Review was removed.");
   }
 
@@ -906,7 +932,7 @@ export default function App() {
     e.preventDefault();
     setShareBusy(true);
     try {
-      if (!isContractorVerified(myContractor)) {
+      if (!canAcceptJobs(myContractor)) {
         throw new Error("Your profile needs to be verified before you can share credentials.");
       }
       const r = await supabase.functions.invoke("share-credentials-with-client", {
@@ -1055,14 +1081,12 @@ export default function App() {
       ...(contractor.credential_reviews || {}),
       [key]: { ...review, reviewed_at: new Date().toISOString(), reviewed_by: user.id },
     };
-    const { data, error } = await supabase
-      .from("contractors")
+    const { error } = await supabase
+      .from("contractor_credentials")
       .update({ credential_reviews: next })
-      .eq("id", contractor.id)
-      .select()
-      .single();
+      .eq("contractor_id", contractor.id);
     if (error) { notify("Review save failed: " + error.message); return false; }
-    setContractors(prev => prev.map(c => c.id === contractor.id ? data : c));
+    await loadContractors();
     notify(`Saved review for ${contractor.name}.`);
     return true;
   }
@@ -1132,8 +1156,7 @@ function avatarInitials(name) {
       .from("credentials")
       .upload(path, file, { upsert: true, contentType: file.type || undefined });
     if (error) throw new Error(`${kind} upload failed: ${error.message}`);
-    const { data } = supabase.storage.from("credentials").getPublicUrl(path);
-    return data.publicUrl;
+    return path;
   }
 
   async function saveProfile(e) {
@@ -1150,8 +1173,8 @@ function avatarInitials(name) {
       const req = requirementsFor(profileForm.trades);
 
       // Universal requirements: business license + general liability insurance.
-      const hasBusinessLicense = !!(profileForm.business_license_url || profileForm.business_license_file);
-      const hasInsurance       = !!(profileForm.insurance_url        || profileForm.insurance_file);
+      const hasBusinessLicense = !!(profileForm.business_license_path || profileForm.business_license_file);
+      const hasInsurance       = !!(profileForm.insurance_path        || profileForm.insurance_file);
       if (!hasBusinessLicense) throw new Error("Business license document is required.");
       if (!profileForm.business_license_number.trim()) throw new Error("Business license number is required.");
       if (!hasInsurance) throw new Error("Certificate of insurance is required.");
@@ -1162,7 +1185,7 @@ function avatarInitials(name) {
       const licensedTrades = profileForm.trades.filter(t => tradeReqMap[t]?.tradeLicense);
       for (const t of licensedTrades) {
         const entry = profileForm.trade_licenses[t] || {};
-        if (!entry.url && !entry.file) {
+        if (!entry.path && !entry.file) {
           throw new Error(`Upload your ${tradeReqMap[t].tradeLicense} for ${t}.`);
         }
         if (!entry.number || !String(entry.number).trim()) {
@@ -1172,16 +1195,16 @@ function avatarInitials(name) {
 
       // Trade-specific: surety bond.
       if (req.needsBond) {
-        const hasBond = !!(profileForm.bond_url || profileForm.bond_file);
+        const hasBond = !!(profileForm.bond_path || profileForm.bond_file);
         if (!hasBond) throw new Error("Surety bond certificate is required for the trades you selected.");
       }
 
-      let business_license_url = profileForm.business_license_url;
-      let insurance_url        = profileForm.insurance_url;
-      let bond_url             = profileForm.bond_url;
-      if (profileForm.business_license_file) business_license_url = await uploadCredential(profileForm.business_license_file, "business-license");
-      if (profileForm.insurance_file)        insurance_url        = await uploadCredential(profileForm.insurance_file,        "insurance");
-      if (profileForm.bond_file)             bond_url             = await uploadCredential(profileForm.bond_file,             "bond");
+      let business_license_path = profileForm.business_license_path;
+      let insurance_path        = profileForm.insurance_path;
+      let bond_path             = profileForm.bond_path;
+      if (profileForm.business_license_file) business_license_path = await uploadCredential(profileForm.business_license_file, "business-license");
+      if (profileForm.insurance_file)        insurance_path        = await uploadCredential(profileForm.insurance_file,        "insurance");
+      if (profileForm.bond_file)             bond_path             = await uploadCredential(profileForm.bond_file,             "bond");
 
       // Upload any new per-trade licenses and build the final JSONB shape
       // for the row (only include trades whose license was actually
@@ -1189,13 +1212,13 @@ function avatarInitials(name) {
       const trade_licenses = {};
       for (const t of licensedTrades) {
         const entry = profileForm.trade_licenses[t] || {};
-        let url = entry.url;
+        let path = entry.path;
         if (entry.file) {
-          url = await uploadCredential(entry.file, `trade-license-${t.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+          path = await uploadCredential(entry.file, `trade-license-${t.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
         }
         trade_licenses[t] = {
           number: String(entry.number || "").trim(),
-          url,
+          path,
           type: tradeReqMap[t].tradeLicense,
         };
       }
@@ -1212,20 +1235,6 @@ function avatarInitials(name) {
         website: profileForm.website.trim() || null,
         avatar: avatarInitials(profileForm.name),
         available: true,
-        business_license_number: profileForm.business_license_number.trim(),
-        business_license_url,
-        trade_licenses,
-        // Keep the legacy license_* fields in sync with the first trade
-        // license so older UI (contractor detail modal, admin cards) still
-        // shows something without a schema migration.
-        license_type:            licensedTrades[0] ? tradeReqMap[licensedTrades[0]].tradeLicense : null,
-        license_number:          licensedTrades[0] ? trade_licenses[licensedTrades[0]].number : null,
-        license_url:             licensedTrades[0] ? trade_licenses[licensedTrades[0]].url    : null,
-        insurance_carrier:       profileForm.insurance_carrier.trim(),
-        insurance_expires_at:    profileForm.insurance_expires_at,
-        insurance_url,
-        bond_amount:             req.needsBond && profileForm.bond_amount ? Number(profileForm.bond_amount) : null,
-        bond_url:                req.needsBond ? bond_url : null,
         // If they had been denied, clear the denial when they resubmit so
         // admins see them in "Pending Verification" again.
         ...(myContractor?.denied_at ? { denied_at: null, denied_by: null, denial_reason: null } : {}),
@@ -1234,10 +1243,25 @@ function avatarInitials(name) {
         ? await supabase.from("contractors").update(row).eq("id", myContractor.id).select().single()
         : await supabase.from("contractors").insert(row).select().single();
       if (error) throw new Error(error.message);
-      setMyContractor(data);
+
+      // Credentials live in a private table only the pro, admins, and a
+      // hiring customer can read.
+      const { error: credErr } = await supabase.from("contractor_credentials").upsert({
+        contractor_id:           data.id,
+        business_license_number: profileForm.business_license_number.trim(),
+        business_license_path,
+        trade_licenses,
+        insurance_carrier:       profileForm.insurance_carrier.trim(),
+        insurance_expires_at:    profileForm.insurance_expires_at,
+        insurance_path,
+        bond_amount:             req.needsBond && profileForm.bond_amount ? Number(profileForm.bond_amount) : null,
+        bond_path:               req.needsBond ? bond_path : null,
+      }, { onConflict: "contractor_id" });
+      if (credErr) throw new Error("Saving your documents failed: " + credErr.message);
+
+      setMyContractor((await withContractorDetails([data]))[0]);
       setProfileModal(false);
-      const { data: cs } = await supabase.from("contractors").select("*").order("id");
-      setContractors(cs || []);
+      await loadContractors();
       // Notify admins and the contractor. Awaited so a failure surfaces
       // to the user instead of silently disappearing.
       if (!data.verified) {
@@ -1273,37 +1297,42 @@ function avatarInitials(name) {
       tags: (myContractor?.tags ?? []).join(", "),
       website: myContractor?.website ?? "",
       business_license_number: myContractor?.business_license_number ?? "",
-      business_license_url:    myContractor?.business_license_url ?? "",
+      business_license_path:   myContractor?.business_license_path ?? "",
       business_license_file:   null,
       // Seed trade_licenses from the row's JSONB, augmenting each entry with a null file slot.
       trade_licenses: Object.fromEntries(
         Object.entries(myContractor?.trade_licenses || {}).map(([trade, tl]) => [
           trade,
-          { number: tl?.number || "", url: tl?.url || "", type: tl?.type || (tradeReqMap[trade]?.tradeLicense || ""), file: null },
+          { number: tl?.number || "", path: tl?.path || "", type: tl?.type || (tradeReqMap[trade]?.tradeLicense || ""), file: null },
         ])
       ),
       insurance_carrier:       myContractor?.insurance_carrier ?? "",
       insurance_expires_at:    myContractor?.insurance_expires_at ?? "",
-      insurance_url:           myContractor?.insurance_url ?? "",
+      insurance_path:          myContractor?.insurance_path ?? "",
       insurance_file:          null,
       bond_amount:             myContractor?.bond_amount?.toString() ?? "",
-      bond_url:                myContractor?.bond_url ?? "",
+      bond_path:               myContractor?.bond_path ?? "",
       bond_file:               null,
     });
     setProfileError(null);
     setProfileModal(true);
   }
 
+  // Needs the private credentials row, so only meaningful for the pro
+  // themselves, admins, and a hiring customer.
   function hasCredentialsOnFile(c) {
-    return !!(c && (c.business_license_url || c.license_url) && c.insurance_url);
+    return !!(c && (c.business_license_path || c.license_path) && c.insurance_path);
   }
   function isContractorVerified(c) {
-    return !!(c && c.verified === true && hasCredentialsOnFile(c));
+    return c?.verified === true;
+  }
+  function canAcceptJobs(c) {
+    return isContractorVerified(c) && hasCredentialsOnFile(c) && !c.deactivated_at;
   }
 
   async function acceptJob(jobId) {
     if (!user) return;
-    if (!isContractorVerified(myContractor)) {
+    if (!canAcceptJobs(myContractor)) {
       notify("Your profile must be verified before you can accept jobs.");
       openProfileModal();
       return;
@@ -1335,7 +1364,8 @@ function avatarInitials(name) {
 
     // Drop an intro message into the customer's inbox so they can reply.
     if (acceptedJob.posted_by && acceptedJob.posted_by !== user.id && myContractor?.id) {
-      const introText = `Hi${acceptedJob.homeowner_name ? " " + acceptedJob.homeowner_name : ""}, I just accepted your job "${acceptedJob.title}". Let me know when you'd like to get started — happy to answer any questions here.`;
+      const { data: contact } = await supabase.from("job_contacts").select("homeowner_name").eq("job_id", acceptedJob.id).maybeSingle();
+      const introText = `Hi${contact?.homeowner_name ? " " + contact.homeowner_name : ""}, I just accepted your job "${acceptedJob.title}". Let me know when you'd like to get started — happy to answer any questions here.`;
       const { error: msgErr } = await supabase.from("messages").insert({
         contractor_id: myContractor.id,
         sender_id:     user.id,
@@ -1559,7 +1589,7 @@ function avatarInitials(name) {
                       >
                         {myContractor ? "Edit Contractor Profile" : "Become a Contractor"}
                       </button>
-                      {isContractorVerified(myContractor) && (
+                      {canAcceptJobs(myContractor) && (
                         <button
                           className="user-menu-item"
                           role="menuitem"
@@ -1827,7 +1857,7 @@ function avatarInitials(name) {
                       )}
                     </div>
                     <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 6 }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
-                    <VerifiedCredentialBadges contractor={c} reqMap={tradeReqMap} />
+                    <VerifiedCredentialBadges contractor={c} />
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
                       <Stars rating={c.rating} />
                       <span style={{ fontSize: 13, color: "#94a3b8" }}>{c.rating} ({c.reviews_count} reviews)</span>
@@ -2154,7 +2184,7 @@ function avatarInitials(name) {
                           Posted {new Date(j.created_at).toLocaleString()}
                         </div>
                         {!j.accepted_by && (() => {
-                          const verified = isContractorVerified(myContractor);
+                          const verified = canAcceptJobs(myContractor);
                           const tradeMatch = myContractor && contractorTrades(myContractor).includes(j.trade);
                           const blocked  = !myContractor || !verified || !tradeMatch;
                           const title = !myContractor
@@ -2923,10 +2953,10 @@ function avatarInitials(name) {
               </div>
             )}
             <div style={{ background: "#0f172a", borderRadius: 12, padding: 14, marginBottom: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 10 }}>CREDENTIALS</div>
-              <CredentialList contractor={modal} reqMap={tradeReqMap} />
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 10 }}>VERIFIED BY SUBCONTRACTOR PROS</div>
+              <VerifiedCredentialsSummary contractor={modal} />
               <div style={{ fontSize: 12, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
-                “Verified” means our team checked that document. Documents are shared with a customer once this pro accepts their job.
+                Our team checked each of these documents. The customer who hires this pro can view the documents themselves.
               </div>
             </div>
 
@@ -3109,7 +3139,7 @@ function avatarInitials(name) {
                       </div>
                       <div style={{ marginTop: 10 }}>
                         <label htmlFor="pf-bl-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
-                          Business License Document {profileForm.business_license_url ? "" : "*"}
+                          Business License Document {profileForm.business_license_path ? "" : "*"}
                         </label>
                         <input
                           id="pf-bl-file"
@@ -3117,9 +3147,9 @@ function avatarInitials(name) {
                           accept="application/pdf,image/*"
                           onChange={e => setProfileForm(f => ({ ...f, business_license_file: e.target.files?.[0] || null }))}
                         />
-                        {profileForm.business_license_url && !profileForm.business_license_file && (
+                        {profileForm.business_license_path && !profileForm.business_license_file && (
                           <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
-                            ✓ On file — <a href={profileForm.business_license_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                            ✓ On file — <DocLink path={profileForm.business_license_path}>view current</DocLink>
                           </div>
                         )}
                       </div>
@@ -3140,12 +3170,12 @@ function avatarInitials(name) {
                       </div>
                       <div style={{ marginTop: 10 }}>
                         <label htmlFor="pf-ins-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
-                          Certificate of Insurance {profileForm.insurance_url ? "" : "*"}
+                          Certificate of Insurance {profileForm.insurance_path ? "" : "*"}
                         </label>
                         <input id="pf-ins-file" type="file" accept="application/pdf,image/*" onChange={e => setProfileForm(f => ({ ...f, insurance_file: e.target.files?.[0] || null }))} />
-                        {profileForm.insurance_url && !profileForm.insurance_file && (
+                        {profileForm.insurance_path && !profileForm.insurance_file && (
                           <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
-                            ✓ On file — <a href={profileForm.insurance_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                            ✓ On file — <DocLink path={profileForm.insurance_path}>view current</DocLink>
                           </div>
                         )}
                       </div>
@@ -3154,7 +3184,7 @@ function avatarInitials(name) {
                     {/* Trade Licenses — one card per licensed trade the contractor selected */}
                     {profileForm.trades.filter(t => tradeReqMap[t]?.tradeLicense).map((t, i) => {
                       const licType = tradeReqMap[t].tradeLicense;
-                      const entry = profileForm.trade_licenses[t] || { number: "", url: "", type: licType, file: null };
+                      const entry = profileForm.trade_licenses[t] || { number: "", path: "", type: licType, file: null };
                       const updateEntry = (patch) => setProfileForm(f => ({
                         ...f,
                         trade_licenses: { ...f.trade_licenses, [t]: { ...entry, type: licType, ...patch } },
@@ -3179,7 +3209,7 @@ function avatarInitials(name) {
                           </div>
                           <div style={{ marginTop: 10 }}>
                             <label htmlFor={`pf-tl-file-${t}`} style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
-                              License Document {entry.url ? "" : "*"}
+                              License Document {entry.path ? "" : "*"}
                             </label>
                             <input
                               id={`pf-tl-file-${t}`}
@@ -3187,9 +3217,9 @@ function avatarInitials(name) {
                               accept="application/pdf,image/*"
                               onChange={e => updateEntry({ file: e.target.files?.[0] || null })}
                             />
-                            {entry.url && !entry.file && (
+                            {entry.path && !entry.file && (
                               <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
-                                ✓ On file — <a href={entry.url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                                ✓ On file — <DocLink path={entry.path}>view current</DocLink>
                               </div>
                             )}
                           </div>
@@ -3213,12 +3243,12 @@ function avatarInitials(name) {
                         </div>
                         <div style={{ marginTop: 10 }}>
                           <label htmlFor="pf-bond-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
-                            Bond Certificate {profileForm.bond_url ? "" : "*"}
+                            Bond Certificate {profileForm.bond_path ? "" : "*"}
                           </label>
                           <input id="pf-bond-file" type="file" accept="application/pdf,image/*" onChange={e => setProfileForm(f => ({ ...f, bond_file: e.target.files?.[0] || null }))} />
-                          {profileForm.bond_url && !profileForm.bond_file && (
+                          {profileForm.bond_path && !profileForm.bond_file && (
                             <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
-                              ✓ On file — <a href={profileForm.bond_url} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>view current</a>
+                              ✓ On file — <DocLink path={profileForm.bond_path}>view current</DocLink>
                             </div>
                           )}
                         </div>

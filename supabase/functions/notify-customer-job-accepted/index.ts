@@ -49,13 +49,18 @@ Deno.serve(async (req) => {
     const { data: contractor } = await admin
       .from("contractors").select("*").eq("user_id", user.id).maybeSingle();
     if (!contractor) return json({ error: "no contractor profile for caller" }, 400);
+    const { data: creds } = await admin
+      .from("contractor_credentials").select("*").eq("contractor_id", contractor.id).maybeSingle();
+    const cc = creds || {};
+    const { data: contact } = await admin
+      .from("job_contacts").select("*").eq("job_id", job.id).maybeSingle();
 
     let posterEmail: string | null = null;
     if (job.posted_by) {
       const { data: authUser } = await admin.auth.admin.getUserById(job.posted_by);
       posterEmail = authUser?.user?.email ?? null;
     }
-    const emailTo = posterEmail || job.homeowner_email;
+    const emailTo = posterEmail || contact?.homeowner_email;
     console.log("target recipient:", emailTo);
     if (!emailTo) return json({ skipped: "no email for job poster" }, 200);
 
@@ -73,31 +78,32 @@ Deno.serve(async (req) => {
 
     // Build the trade-license rows. New contractors have per-trade licenses
     // in the trade_licenses JSONB map; older ones still have a single
-    // license_url/type/number. Fall back to the legacy fields only when
+    // license_path/type/number. Fall back to the legacy fields only when
     // nothing lives in trade_licenses.
-    const tradeLicenseEntries = contractor.trade_licenses && Object.keys(contractor.trade_licenses).length > 0
-      ? Object.entries(contractor.trade_licenses).map(([trade, tl]) => ({
+    const tradeLicenseEntries = cc.trade_licenses && Object.keys(cc.trade_licenses).length > 0
+      ? Object.entries(cc.trade_licenses).map(([trade, tl]: [string, any]) => ({
           trade,
           key:    `trade_license:${trade}`,
           type:   tl?.type   || "Trade License",
           number: tl?.number || "",
-          url:    tl?.url    || "",
+          path:   tl?.path   || "",
         }))
-      : (contractor.license_url ? [{
+      : (cc.license_path ? [{
           trade:  contractor.trade || "",
           key:    "license",
-          type:   contractor.license_type   || "Trade License",
-          number: contractor.license_number || "",
-          url:    contractor.license_url,
+          type:   cc.license_type   || "Trade License",
+          number: cc.license_number || "",
+          path:   cc.license_path,
         }] : []);
+    const links = await signDocs(admin, [cc.business_license_path, cc.insurance_path, cc.bond_path, ...tradeLicenseEntries.map((e: any) => e.path)]);
     const tradeLicensesHtml = tradeLicenseEntries.map(e => `
       <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
-        <strong>${escape(e.type)}</strong>${e.trade ? ` <span style="color:#065f46;">· ${escape(e.trade)}</span>` : ""}${e.number ? " &middot; #" + escape(e.number) : ""}${statusHtml(contractor, e.key, e.url)}
+        <strong>${escape(e.type)}</strong>${e.trade ? ` <span style="color:#065f46;">· ${escape(e.trade)}</span>` : ""}${e.number ? " &middot; #" + escape(e.number) : ""}${statusHtml(cc, e.key, e.path)}
       </td></tr>
-      ${e.url ? `<tr><td style="padding:0 0 6px;"><a href="${e.url}" style="color:#047857;font-size:14px;font-weight:600;">View ${escape(e.type)}</a></td></tr>` : ""}
+      ${links[e.path] ? `<tr><td style="padding:0 0 6px;"><a href="${links[e.path]}" style="color:#047857;font-size:14px;font-weight:600;">View ${escape(e.type)}</a></td></tr>` : ""}
     `).join("");
     const tradeLicensesText = tradeLicenseEntries.map(e =>
-      `${e.type}${e.trade ? ` (${e.trade})` : ""}${e.number ? " #" + e.number : ""}${statusText(contractor, e.key, e.url)}${e.url ? "\n  Doc: " + e.url : ""}`
+      `${e.type}${e.trade ? ` (${e.trade})` : ""}${e.number ? " #" + e.number : ""}${statusText(cc, e.key, e.path)}${links[e.path] ? "\n  Doc: " + links[e.path] : ""}`
     ).join("\n");
 
     // Table-based layout for maximum email-client compatibility (Yahoo,
@@ -110,7 +116,7 @@ Deno.serve(async (req) => {
   <tr><td align="center">
     <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#ffffff;border-radius:12px;">
       <tr><td style="padding:24px 24px 12px;">
-        <h1 style="color:#0f172a;font-size:22px;margin:0 0 8px;">Great news${job.homeowner_name ? `, ${escape(job.homeowner_name)}` : ""}!</h1>
+        <h1 style="color:#0f172a;font-size:22px;margin:0 0 8px;">Great news${contact?.homeowner_name ? `, ${escape(contact.homeowner_name)}` : ""}!</h1>
         <p style="color:#475569;font-size:15px;line-height:1.55;margin:0 0 16px;">
           <strong>${escape(contractor.name)}</strong> just accepted your job.
         </p>
@@ -122,22 +128,23 @@ Deno.serve(async (req) => {
           <tr><td style="padding:16px;">
             <div style="color:#065f46;font-weight:700;font-size:13px;letter-spacing:1px;margin-bottom:10px;">CREDENTIALS ON FILE</div>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              ${contractor.business_license_url ? `
+              ${cc.business_license_path ? `
               <tr><td style="padding:4px 0;color:#0f172a;font-size:14px;">
-                <strong>Business License</strong>${contractor.business_license_number ? " &middot; #" + escape(contractor.business_license_number) : ""}${statusHtml(contractor, "business_license", contractor.business_license_url)}
+                <strong>Business License</strong>${cc.business_license_number ? " &middot; #" + escape(cc.business_license_number) : ""}${statusHtml(cc, "business_license", cc.business_license_path)}
               </td></tr>
-              <tr><td style="padding:0 0 6px;"><a href="${contractor.business_license_url}" style="color:#047857;font-size:14px;font-weight:600;">View business license</a></td></tr>` : ""}
+              ${links[cc.business_license_path] ? `<tr><td style="padding:0 0 6px;"><a href="${links[cc.business_license_path]}" style="color:#047857;font-size:14px;font-weight:600;">View business license</a></td></tr>` : ""}` : ""}
               ${tradeLicensesHtml}
               <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
-                <strong>Insurance</strong>${contractor.insurance_carrier ? " &middot; " + escape(contractor.insurance_carrier) : ""}${contractor.insurance_expires_at ? " &middot; expires " + escape(contractor.insurance_expires_at) : ""}${statusHtml(contractor, "insurance", contractor.insurance_url, contractor.insurance_expires_at)}
+                <strong>Insurance</strong>${cc.insurance_carrier ? " &middot; " + escape(cc.insurance_carrier) : ""}${cc.insurance_expires_at ? " &middot; expires " + escape(cc.insurance_expires_at) : ""}${statusHtml(cc, "insurance", cc.insurance_path, cc.insurance_expires_at)}
               </td></tr>
-              ${contractor.insurance_url ? `<tr><td style="padding:0 0 6px;"><a href="${contractor.insurance_url}" style="color:#047857;font-size:14px;font-weight:600;">View certificate of insurance</a></td></tr>` : ""}
-              ${contractor.bond_url ? `
+              ${links[cc.insurance_path] ? `<tr><td style="padding:0 0 6px;"><a href="${links[cc.insurance_path]}" style="color:#047857;font-size:14px;font-weight:600;">View certificate of insurance</a></td></tr>` : ""}
+              ${cc.bond_path ? `
               <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
-                <strong>Surety Bond</strong>${contractor.bond_amount ? " &middot; $" + Number(contractor.bond_amount).toLocaleString() : ""}${statusHtml(contractor, "bond", contractor.bond_url)}
+                <strong>Surety Bond</strong>${cc.bond_amount ? " &middot; $" + Number(cc.bond_amount).toLocaleString() : ""}${statusHtml(cc, "bond", cc.bond_path)}
               </td></tr>
-              <tr><td style="padding:0;"><a href="${contractor.bond_url}" style="color:#047857;font-size:14px;font-weight:600;">View bond certificate</a></td></tr>` : ""}
+              ${links[cc.bond_path] ? `<tr><td style="padding:0;"><a href="${links[cc.bond_path]}" style="color:#047857;font-size:14px;font-weight:600;">View bond certificate</a></td></tr>` : ""}` : ""}
             </table>
+            <div style="color:#065f46;font-size:12px;margin-top:10px;">Document links expire in 7 days. You can open them anytime in Subcontractor Pros under Post a Job &rarr; Your Posted Jobs.</div>
           </td></tr>
         </table>
       </td></tr>
@@ -192,14 +199,15 @@ Deno.serve(async (req) => {
       contractor.website ? `Website: ${contractor.website}` : "",
       "",
       "CREDENTIALS ON FILE",
-      contractor.business_license_url
-        ? `Business License${contractor.business_license_number ? " #" + contractor.business_license_number : ""}${statusText(contractor, "business_license", contractor.business_license_url)}\n  Doc: ${contractor.business_license_url}`
+      cc.business_license_path
+        ? `Business License${cc.business_license_number ? " #" + cc.business_license_number : ""}${statusText(cc, "business_license", cc.business_license_path)}${links[cc.business_license_path] ? "\n  Doc: " + links[cc.business_license_path] : ""}`
         : "",
       tradeLicensesText,
-      `Insurance${contractor.insurance_carrier ? " · " + contractor.insurance_carrier : ""}${contractor.insurance_expires_at ? " (expires " + contractor.insurance_expires_at + ")" : ""}${statusText(contractor, "insurance", contractor.insurance_url, contractor.insurance_expires_at)}${contractor.insurance_url ? "\n  COI: " + contractor.insurance_url : ""}`,
-      contractor.bond_url
-        ? `Surety Bond${contractor.bond_amount ? " · $" + Number(contractor.bond_amount).toLocaleString() : ""}${statusText(contractor, "bond", contractor.bond_url)}\n  Doc: ${contractor.bond_url}`
+      `Insurance${cc.insurance_carrier ? " · " + cc.insurance_carrier : ""}${cc.insurance_expires_at ? " (expires " + cc.insurance_expires_at + ")" : ""}${statusText(cc, "insurance", cc.insurance_path, cc.insurance_expires_at)}${links[cc.insurance_path] ? "\n  COI: " + links[cc.insurance_path] : ""}`,
+      cc.bond_path
+        ? `Surety Bond${cc.bond_amount ? " · $" + Number(cc.bond_amount).toLocaleString() : ""}${statusText(cc, "bond", cc.bond_path)}${links[cc.bond_path] ? "\n  Doc: " + links[cc.bond_path] : ""}`
         : "",
+      "Document links expire in 7 days. You can open them anytime in Subcontractor Pros.",
       "",
       "They also sent you an intro message in the app. Log in to reply.",
       appUrl ? `Open Subcontractor Pros: ${appUrl}` : "",
@@ -232,12 +240,12 @@ function escape(s: string) {
   return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
-// A review only counts for the exact file that was reviewed (doc_url), and
+// A review only counts for the exact file that was reviewed (doc_path), and
 // an expired credential never reads as verified.
-function credStatus(c: any, key: string, docUrl?: string | null, fallbackExpiry?: string | null) {
-  if (!docUrl) return "";
+function credStatus(c: any, key: string, docPath?: string | null, fallbackExpiry?: string | null) {
+  if (!docPath) return "";
   const r = (c.credential_reviews || {})[key];
-  if (!r || r.doc_url !== docUrl || r.status === "pending") return "pending";
+  if (!r || r.doc_path !== docPath || r.status === "pending") return "pending";
   if (r.status === "rejected") return "rejected";
   const exp = r.expires_on || fallbackExpiry;
   if (r.status === "verified") return exp && exp < new Date().toISOString().slice(0, 10) ? "expired" : "verified";
@@ -252,9 +260,20 @@ const STATUS_HTML: Record<string, string> = {
 const STATUS_TEXT: Record<string, string> = {
   verified: " [Verified by Subcontractor Pros]", pending: " [Not yet reviewed]", expired: " [Expired]", rejected: " [Did not pass review]",
 };
-function statusHtml(c: any, key: string, docUrl?: string | null, fallbackExpiry?: string | null) {
-  return STATUS_HTML[credStatus(c, key, docUrl, fallbackExpiry)] || "";
+function statusHtml(c: any, key: string, docPath?: string | null, fallbackExpiry?: string | null) {
+  return STATUS_HTML[credStatus(c, key, docPath, fallbackExpiry)] || "";
 }
-function statusText(c: any, key: string, docUrl?: string | null, fallbackExpiry?: string | null) {
-  return STATUS_TEXT[credStatus(c, key, docUrl, fallbackExpiry)] || "";
+function statusText(c: any, key: string, docPath?: string | null, fallbackExpiry?: string | null) {
+  return STATUS_TEXT[credStatus(c, key, docPath, fallbackExpiry)] || "";
+}
+
+const LINK_TTL_SECONDS = 60 * 60 * 24 * 7;
+
+// Documents live in a private bucket; emails carry 7-day signed links.
+async function signDocs(admin: any, paths: (string | null | undefined)[]) {
+  const list = [...new Set(paths.filter(Boolean))] as string[];
+  if (!list.length) return {} as Record<string, string>;
+  const { data, error } = await admin.storage.from("credentials").createSignedUrls(list, LINK_TTL_SECONDS);
+  if (error) console.error("signing document links failed:", error.message);
+  return Object.fromEntries((data || []).filter((d: any) => d.signedUrl).map((d: any) => [d.path, d.signedUrl])) as Record<string, string>;
 }

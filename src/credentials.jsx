@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { CREDENTIAL_STATUS_LABEL, contractorCredentials } from "./services";
+import { supabase } from "./lib/supabase";
+import { CREDENTIAL_STATUS_LABEL, contractorCredentials, verifiedCredentialLabels } from "./services";
 
 export const VERIFIED_PRO_MEANING =
-  "Verified pro: a SubcontractorPros admin reviewed this business's submitted documents and approved the profile to accept jobs. Each credential's own status is listed on the profile.";
+  "Verified pro: a SubcontractorPros admin reviewed this business's documents and approved the profile to accept jobs.";
 
 const STATUS_STYLE = {
   verified:     { background: "#064e3b", color: "#34d399" },
@@ -14,6 +15,35 @@ const STATUS_STYLE = {
 
 export function CredentialStatusBadge({ status }) {
   return <span className="badge" style={STATUS_STYLE[status]}>{CREDENTIAL_STATUS_LABEL[status]}</span>;
+}
+
+// Documents live in a private bucket; each click mints a short-lived link.
+export function DocLink({ path, children = "View document" }) {
+  const [failed, setFailed] = useState(false);
+  async function open(e) {
+    e.preventDefault();
+    setFailed(false);
+    // Open synchronously so popup blockers treat it as a user action.
+    const win = window.open("", "_blank");
+    const { data, error } = await supabase.storage.from("credentials").createSignedUrl(path, 300);
+    if (error || !data?.signedUrl) {
+      win?.close();
+      setFailed(true);
+      return;
+    }
+    if (win) {
+      win.opener = null;
+      win.location.href = data.signedUrl;
+    } else {
+      window.location.href = data.signedUrl;
+    }
+  }
+  return (
+    <>
+      <a href="#" onClick={open} style={{ color: "#34d399", textDecoration: "underline", fontSize: 12 }}>{children}</a>
+      {failed && <span style={{ color: "#f87171", fontSize: 12 }}> — couldn't open this document</span>}
+    </>
+  );
 }
 
 function detailLine(item) {
@@ -28,7 +58,7 @@ function detailLine(item) {
   ].filter(Boolean).join(" · ");
 }
 
-// Public/customer view. Document links only when `showDocs`.
+// Full detail — for the pro themselves and the customer who hired them.
 export function CredentialList({ contractor, reqMap, showDocs = false, showNotes = false }) {
   const items = contractorCredentials(contractor, reqMap);
   return (
@@ -38,14 +68,10 @@ export function CredentialList({ contractor, reqMap, showDocs = false, showNotes
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontWeight: 600, color: "#f1f5f9", fontSize: 13 }}>{item.label}</div>
             {detailLine(item) && <div style={{ fontSize: 12, color: "#94a3b8" }}>{detailLine(item)}</div>}
-            {showNotes && item.review?.note && item.review.doc_url === item.docUrl && (
+            {showNotes && item.review?.note && item.review.doc_path === item.docPath && (
               <div style={{ fontSize: 12, color: "#fbbf24" }}>Reviewer note: {item.review.note}</div>
             )}
-            {showDocs && item.docUrl && (
-              <a href={item.docUrl} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline", fontSize: 12 }}>
-                View document
-              </a>
-            )}
+            {showDocs && item.docPath && <DocLink path={item.docPath} />}
           </div>
           <CredentialStatusBadge status={item.status} />
         </li>
@@ -54,20 +80,30 @@ export function CredentialList({ contractor, reqMap, showDocs = false, showNotes
   );
 }
 
-export function VerifiedCredentialBadges({ contractor, reqMap }) {
-  const verified = contractorCredentials(contractor, reqMap).filter(i => i.status === "verified");
-  const labels = [];
-  if (verified.some(i => i.kind === "insurance")) labels.push("Insurance verified");
-  for (const i of verified.filter(i => i.kind === "trade_license")) {
-    labels.push(`${i.trade ? `${i.trade} license` : "License"} verified${i.jurisdiction ? ` · ${i.jurisdiction}` : ""}`);
-  }
-  if (verified.some(i => i.kind === "business_license")) labels.push("Business license verified");
-  if (verified.some(i => i.kind === "bond")) labels.push("Bond verified");
+// Public view — only what an admin has verified, in general terms.
+export function VerifiedCredentialBadges({ contractor }) {
+  const labels = verifiedCredentialLabels(contractor);
   if (!labels.length) return null;
   return (
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-      {labels.map(l => <span key={l} className="badge avail" style={{ fontWeight: 500 }}>✓ {l}</span>)}
+      {labels.map(l => <span key={l} className="badge avail" style={{ fontWeight: 500 }}>✓ {l} verified</span>)}
     </div>
+  );
+}
+
+export function VerifiedCredentialsSummary({ contractor }) {
+  const labels = verifiedCredentialLabels(contractor);
+  if (!labels.length) {
+    return <div style={{ fontSize: 13, color: "#94a3b8" }}>No credentials verified yet.</div>;
+  }
+  return (
+    <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+      {labels.map(l => (
+        <li key={l} style={{ fontSize: 14, color: "#f1f5f9" }}>
+          <span style={{ color: "#34d399", fontWeight: 700 }}>✓</span> {l} verified
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -86,8 +122,9 @@ export function CredentialReviewPanel({ contractor, reqMap, onSave }) {
 function CredentialReviewRow({ item, onSave }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const current = item.review && item.review.doc_path === item.docPath;
   const [form, setForm] = useState({
-    status: item.review?.status && item.review.doc_url === item.docUrl ? item.review.status : "verified",
+    status: current && item.review.status ? item.review.status : "verified",
     jurisdiction: item.review?.jurisdiction || "",
     scope: item.review?.scope || "",
     expires_on: item.review?.expires_on || item.expiresOn || "",
@@ -104,7 +141,7 @@ function CredentialReviewRow({ item, onSave }) {
       scope: form.scope.trim() || null,
       expires_on: form.expires_on || null,
       note: form.note.trim() || null,
-      doc_url: item.docUrl,
+      doc_path: item.docPath,
     });
     setBusy(false);
     if (saved) setOpen(false);
@@ -116,20 +153,20 @@ function CredentialReviewRow({ item, onSave }) {
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 700, color: "#f1f5f9" }}>{item.label}</div>
           {detailLine(item) && <div style={{ fontSize: 12, color: "#94a3b8" }}>{detailLine(item)}</div>}
-          {item.docUrl
-            ? <a href={item.docUrl} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline", fontSize: 12 }}>View document</a>
+          {item.docPath
+            ? <DocLink path={item.docPath} />
             : <span style={{ fontSize: 12, color: "#64748b" }}>No document uploaded</span>}
           {item.review?.note && <div style={{ fontSize: 12, color: "#fbbf24", marginTop: 4 }}>Note: {item.review.note}</div>}
-          {item.review?.reviewed_at && item.review.doc_url === item.docUrl && (
+          {item.review?.reviewed_at && current && (
             <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>Reviewed {new Date(item.review.reviewed_at).toLocaleString()}</div>
           )}
-          {item.review && item.review.doc_url !== item.docUrl && item.docUrl && (
+          {item.review && !current && item.docPath && (
             <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 2 }}>New file uploaded since the last review.</div>
           )}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           <CredentialStatusBadge status={item.status} />
-          {item.docUrl && (
+          {item.docPath && (
             <button type="button" className="btn btn-outline btn-sm" onClick={() => setOpen(o => !o)} aria-expanded={open}>
               {open ? "Close" : "Review"}
             </button>
@@ -159,7 +196,7 @@ function CredentialReviewRow({ item, onSave }) {
             <input id={inputId("scope")} placeholder="e.g. Master electrician" value={form.scope} onChange={e => setForm(f => ({ ...f, scope: e.target.value }))} />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
-            <label htmlFor={inputId("note")} className="field-label">Note for the provider (not private)</label>
+            <label htmlFor={inputId("note")} className="field-label">Note for the provider</label>
             <input id={inputId("note")} placeholder="e.g. Certificate is expired — upload the renewal" value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
           </div>
           <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>

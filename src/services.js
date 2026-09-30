@@ -160,45 +160,66 @@ function today() {
 }
 
 // Every credential document a contractor has (or is expected to have), with
-// its computed review status. A review only counts for the exact file that
+// its computed review status. Needs the private contractor_credentials row
+// merged onto the contractor. A review only counts for the exact file that
 // was reviewed — uploading a new file sends it back to "pending".
 export function contractorCredentials(c, reqMap = {}) {
   if (!c) return [];
   const reviews = c.credential_reviews || {};
   const items = [];
-  const push = (key, kind, label, docUrl, extra = {}) => {
+  const push = (key, kind, label, docPath, extra = {}) => {
     const review = reviews[key] || null;
     const expiresOn = review?.expires_on || extra.expiresOn || null;
     let status;
-    if (!docUrl) status = "not_provided";
-    else if (!review || review.doc_url !== docUrl || review.status === "pending") status = "pending";
+    if (!docPath) status = "not_provided";
+    else if (!review || review.doc_path !== docPath || review.status === "pending") status = "pending";
     else if (review.status === "rejected") status = "rejected";
     else if (review.status === "verified") status = expiresOn && expiresOn < today() ? "expired" : "verified";
     else status = "pending";
-    items.push({ ...extra, key, kind, label, docUrl, review, status, expiresOn, jurisdiction: review?.jurisdiction || null, scope: review?.scope || null });
+    items.push({ ...extra, key, kind, label, docPath, review, status, expiresOn, jurisdiction: review?.jurisdiction || null, scope: review?.scope || null });
   };
 
-  push("business_license", "business_license", "Business License", c.business_license_url || null, { number: c.business_license_number || null });
+  push("business_license", "business_license", "Business License", c.business_license_path || null, { number: c.business_license_number || null });
 
   const tl = c.trade_licenses || {};
   const tlEntries = Object.entries(tl);
   if (tlEntries.length) {
     for (const [trade, entry] of tlEntries) {
-      push(`trade_license:${trade}`, "trade_license", entry?.type || reqMap[trade]?.tradeLicense || "Trade License", entry?.url || null, { number: entry?.number || null, trade });
+      push(`trade_license:${trade}`, "trade_license", entry?.type || reqMap[trade]?.tradeLicense || "Trade License", entry?.path || null, { number: entry?.number || null, trade });
     }
-  } else if (c.license_url) {
-    push("license", "trade_license", c.license_type || "Trade License", c.license_url, { number: c.license_number || null, trade: c.trade || null });
+  } else if (c.license_path) {
+    push("license", "trade_license", c.license_type || "Trade License", c.license_path, { number: c.license_number || null, trade: c.trade || null });
   }
 
-  push("insurance", "insurance", "General Liability Insurance", c.insurance_url || null, {
+  push("insurance", "insurance", "General Liability Insurance", c.insurance_path || null, {
     carrier: c.insurance_carrier || null,
     expiresOn: c.insurance_expires_at || null,
   });
 
-  if (c.bond_url) push("bond", "bond", "Surety Bond", c.bond_url, { amount: c.bond_amount || null });
+  if (c.bond_path) push("bond", "bond", "Surety Bond", c.bond_path, { amount: c.bond_amount || null });
   return items;
 }
 
+// Public view: contractor_badges keys (e.g. "insurance", "trade_license:Electrical"),
+// computed server-side from admin reviews. Carries no numbers, dates, or files.
+function badgeKind(key) {
+  return key === "license" || key.startsWith("trade_license:") ? "trade_license" : key;
+}
+
 export function verifiedCredentialKinds(c) {
-  return new Set(contractorCredentials(c).filter(i => i.status === "verified").map(i => i.kind));
+  return new Set((c?.verified_credentials || []).map(badgeKind));
+}
+
+export function verifiedCredentialLabels(c) {
+  const keys = c?.verified_credentials || [];
+  const order = { business_license: 0, trade_license: 1, insurance: 2, bond: 3 };
+  return [...keys]
+    .sort((a, b) => order[badgeKind(a)] - order[badgeKind(b)] || a.localeCompare(b))
+    .map(key => {
+      if (key === "business_license") return "Business license";
+      if (key === "insurance") return "Insurance";
+      if (key === "bond") return "Bond";
+      if (key === "license") return "Trade license";
+      return `${key.slice("trade_license:".length)} license`;
+    });
 }

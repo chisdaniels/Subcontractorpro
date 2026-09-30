@@ -38,14 +38,17 @@ Deno.serve(async (req) => {
     if (!contractor) return json({ error: "no contractor profile" }, 404);
     if (contractor.deactivated_at) return json({ error: "profile inactive" }, 403);
     if (!contractor.verified) return json({ error: "not verified — get verified before sharing credentials" }, 403);
+    const { data: creds } = await admin
+      .from("contractor_credentials").select("*").eq("contractor_id", contractor.id).maybeSingle();
+    const cc = creds || {};
     // Contractor is considered "sharable" if at minimum they have insurance
     // on file plus SOMETHING for a license (business, per-trade, or legacy).
     const hasAnyLicense = !!(
-      contractor.business_license_url ||
-      contractor.license_url ||
-      (contractor.trade_licenses && Object.keys(contractor.trade_licenses).length > 0)
+      cc.business_license_path ||
+      cc.license_path ||
+      (cc.trade_licenses && Object.keys(cc.trade_licenses).length > 0)
     );
-    if (!hasAnyLicense || !contractor.insurance_url) {
+    if (!hasAnyLicense || !cc.insurance_path) {
       return json({ error: "credentials incomplete" }, 400);
     }
 
@@ -68,29 +71,30 @@ Deno.serve(async (req) => {
     const senderEmail = user.email || "";
     const senderName  = contractor.name;
 
-    const tradeLicenseEntries = contractor.trade_licenses && Object.keys(contractor.trade_licenses).length > 0
-      ? Object.entries(contractor.trade_licenses).map(([trade, tl]: [string, any]) => ({
+    const tradeLicenseEntries = cc.trade_licenses && Object.keys(cc.trade_licenses).length > 0
+      ? Object.entries(cc.trade_licenses).map(([trade, tl]: [string, any]) => ({
           trade,
           key:    `trade_license:${trade}`,
           type:   tl?.type   || "Trade License",
           number: tl?.number || "",
-          url:    tl?.url    || "",
+          path:   tl?.path   || "",
         }))
-      : (contractor.license_url ? [{
+      : (cc.license_path ? [{
           trade:  contractor.trade || "",
           key:    "license",
-          type:   contractor.license_type   || "Trade License",
-          number: contractor.license_number || "",
-          url:    contractor.license_url,
+          type:   cc.license_type   || "Trade License",
+          number: cc.license_number || "",
+          path:   cc.license_path,
         }] : []);
+    const links = await signDocs(admin, [cc.business_license_path, cc.insurance_path, cc.bond_path, ...tradeLicenseEntries.map((e: any) => e.path)]);
     const tradeLicensesHtml = tradeLicenseEntries.map((e: any) => `
       <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
-        <strong>${escape(e.type)}</strong>${e.trade ? ` <span style="color:#065f46;">· ${escape(e.trade)}</span>` : ""}${e.number ? " &middot; #" + escape(e.number) : ""}${statusHtml(contractor, e.key, e.url)}
+        <strong>${escape(e.type)}</strong>${e.trade ? ` <span style="color:#065f46;">· ${escape(e.trade)}</span>` : ""}${e.number ? " &middot; #" + escape(e.number) : ""}${statusHtml(cc, e.key, e.path)}
       </td></tr>
-      ${e.url ? `<tr><td style="padding:0 0 6px;"><a href="${e.url}" style="color:#047857;font-size:14px;font-weight:600;">View ${escape(e.type)}</a></td></tr>` : ""}
+      ${links[e.path] ? `<tr><td style="padding:0 0 6px;"><a href="${links[e.path]}" style="color:#047857;font-size:14px;font-weight:600;">View ${escape(e.type)}</a></td></tr>` : ""}
     `).join("");
     const tradeLicensesText = tradeLicenseEntries.map((e: any) =>
-      `${e.type}${e.trade ? ` (${e.trade})` : ""}${e.number ? " #" + e.number : ""}${statusText(contractor, e.key, e.url)}${e.url ? "\n  Doc: " + e.url : ""}`
+      `${e.type}${e.trade ? ` (${e.trade})` : ""}${e.number ? " #" + e.number : ""}${statusText(cc, e.key, e.path)}${links[e.path] ? "\n  Doc: " + links[e.path] : ""}`
     ).join("\n");
 
     const subject = `${senderName} — License &amp; insurance for your review`;
@@ -115,22 +119,23 @@ Deno.serve(async (req) => {
           <tr><td style="padding:16px;">
             <div style="color:#065f46;font-weight:700;font-size:13px;letter-spacing:1px;margin-bottom:10px;">CREDENTIALS ON FILE</div>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              ${contractor.business_license_url ? `
+              ${cc.business_license_path ? `
               <tr><td style="padding:4px 0;color:#0f172a;font-size:14px;">
-                <strong>Business License</strong>${contractor.business_license_number ? " &middot; #" + escape(contractor.business_license_number) : ""}${statusHtml(contractor, "business_license", contractor.business_license_url)}
+                <strong>Business License</strong>${cc.business_license_number ? " &middot; #" + escape(cc.business_license_number) : ""}${statusHtml(cc, "business_license", cc.business_license_path)}
               </td></tr>
-              <tr><td style="padding:0 0 6px;"><a href="${contractor.business_license_url}" style="color:#047857;font-size:14px;font-weight:600;">View business license</a></td></tr>` : ""}
+              ${links[cc.business_license_path] ? `<tr><td style="padding:0 0 6px;"><a href="${links[cc.business_license_path]}" style="color:#047857;font-size:14px;font-weight:600;">View business license</a></td></tr>` : ""}` : ""}
               ${tradeLicensesHtml}
               <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
-                <strong>Insurance</strong>${contractor.insurance_carrier ? " &middot; " + escape(contractor.insurance_carrier) : ""}${contractor.insurance_expires_at ? " &middot; expires " + escape(contractor.insurance_expires_at) : ""}${statusHtml(contractor, "insurance", contractor.insurance_url, contractor.insurance_expires_at)}
+                <strong>Insurance</strong>${cc.insurance_carrier ? " &middot; " + escape(cc.insurance_carrier) : ""}${cc.insurance_expires_at ? " &middot; expires " + escape(cc.insurance_expires_at) : ""}${statusHtml(cc, "insurance", cc.insurance_path, cc.insurance_expires_at)}
               </td></tr>
-              <tr><td style="padding:0 0 6px;"><a href="${contractor.insurance_url}" style="color:#047857;font-size:14px;font-weight:600;">View certificate of insurance</a></td></tr>
-              ${contractor.bond_url ? `
+              ${links[cc.insurance_path] ? `<tr><td style="padding:0 0 6px;"><a href="${links[cc.insurance_path]}" style="color:#047857;font-size:14px;font-weight:600;">View certificate of insurance</a></td></tr>` : ""}
+              ${cc.bond_path ? `
               <tr><td style="padding:8px 0 2px;color:#0f172a;font-size:14px;border-top:1px solid #d1fae5;">
-                <strong>Surety Bond</strong>${contractor.bond_amount ? " &middot; $" + Number(contractor.bond_amount).toLocaleString() : ""}${statusHtml(contractor, "bond", contractor.bond_url)}
+                <strong>Surety Bond</strong>${cc.bond_amount ? " &middot; $" + Number(cc.bond_amount).toLocaleString() : ""}${statusHtml(cc, "bond", cc.bond_path)}
               </td></tr>
-              <tr><td style="padding:0;"><a href="${contractor.bond_url}" style="color:#047857;font-size:14px;font-weight:600;">View bond certificate</a></td></tr>` : ""}
+              ${links[cc.bond_path] ? `<tr><td style="padding:0;"><a href="${links[cc.bond_path]}" style="color:#047857;font-size:14px;font-weight:600;">View bond certificate</a></td></tr>` : ""}` : ""}
             </table>
+            <div style="color:#065f46;font-size:12px;margin-top:10px;">Document links expire in 7 days. Ask ${escape(senderName)} to share again if you need them later.</div>
           </td></tr>
         </table>
       </td></tr>
@@ -174,14 +179,15 @@ Deno.serve(async (req) => {
       message ? `Their note: ${message}` : "",
       message ? "" : "",
       "CREDENTIALS ON FILE",
-      contractor.business_license_url
-        ? `Business License${contractor.business_license_number ? " #" + contractor.business_license_number : ""}${statusText(contractor, "business_license", contractor.business_license_url)}\n  Doc: ${contractor.business_license_url}`
+      cc.business_license_path
+        ? `Business License${cc.business_license_number ? " #" + cc.business_license_number : ""}${statusText(cc, "business_license", cc.business_license_path)}${links[cc.business_license_path] ? "\n  Doc: " + links[cc.business_license_path] : ""}`
         : "",
       tradeLicensesText,
-      `Insurance${contractor.insurance_carrier ? " · " + contractor.insurance_carrier : ""}${contractor.insurance_expires_at ? " (expires " + contractor.insurance_expires_at + ")" : ""}${statusText(contractor, "insurance", contractor.insurance_url, contractor.insurance_expires_at)}\n  COI: ${contractor.insurance_url}`,
-      contractor.bond_url
-        ? `Surety Bond${contractor.bond_amount ? " · $" + Number(contractor.bond_amount).toLocaleString() : ""}${statusText(contractor, "bond", contractor.bond_url)}\n  Doc: ${contractor.bond_url}`
+      `Insurance${cc.insurance_carrier ? " · " + cc.insurance_carrier : ""}${cc.insurance_expires_at ? " (expires " + cc.insurance_expires_at + ")" : ""}${statusText(cc, "insurance", cc.insurance_path, cc.insurance_expires_at)}${links[cc.insurance_path] ? "\n  COI: " + links[cc.insurance_path] : ""}`,
+      cc.bond_path
+        ? `Surety Bond${cc.bond_amount ? " · $" + Number(cc.bond_amount).toLocaleString() : ""}${statusText(cc, "bond", cc.bond_path)}${links[cc.bond_path] ? "\n  Doc: " + links[cc.bond_path] : ""}`
         : "",
+      "Document links expire in 7 days.",
       "",
       `About ${senderName}: ${contractorTrades}${contractor.location ? " · " + contractor.location : ""}`,
       contractor.hourly != null ? `$${contractor.hourly}/hr` : "",
@@ -229,12 +235,12 @@ function escape(s: string) {
   return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
-// A review only counts for the exact file that was reviewed (doc_url), and
+// A review only counts for the exact file that was reviewed (doc_path), and
 // an expired credential never reads as verified.
-function credStatus(c: any, key: string, docUrl?: string | null, fallbackExpiry?: string | null) {
-  if (!docUrl) return "";
+function credStatus(c: any, key: string, docPath?: string | null, fallbackExpiry?: string | null) {
+  if (!docPath) return "";
   const r = (c.credential_reviews || {})[key];
-  if (!r || r.doc_url !== docUrl || r.status === "pending") return "pending";
+  if (!r || r.doc_path !== docPath || r.status === "pending") return "pending";
   if (r.status === "rejected") return "rejected";
   const exp = r.expires_on || fallbackExpiry;
   if (r.status === "verified") return exp && exp < new Date().toISOString().slice(0, 10) ? "expired" : "verified";
@@ -249,9 +255,20 @@ const STATUS_HTML: Record<string, string> = {
 const STATUS_TEXT: Record<string, string> = {
   verified: " [Verified by Subcontractor Pros]", pending: " [Not yet reviewed]", expired: " [Expired]", rejected: " [Did not pass review]",
 };
-function statusHtml(c: any, key: string, docUrl?: string | null, fallbackExpiry?: string | null) {
-  return STATUS_HTML[credStatus(c, key, docUrl, fallbackExpiry)] || "";
+function statusHtml(c: any, key: string, docPath?: string | null, fallbackExpiry?: string | null) {
+  return STATUS_HTML[credStatus(c, key, docPath, fallbackExpiry)] || "";
 }
-function statusText(c: any, key: string, docUrl?: string | null, fallbackExpiry?: string | null) {
-  return STATUS_TEXT[credStatus(c, key, docUrl, fallbackExpiry)] || "";
+function statusText(c: any, key: string, docPath?: string | null, fallbackExpiry?: string | null) {
+  return STATUS_TEXT[credStatus(c, key, docPath, fallbackExpiry)] || "";
+}
+
+const LINK_TTL_SECONDS = 60 * 60 * 24 * 7;
+
+// Documents live in a private bucket; emails carry 7-day signed links.
+async function signDocs(admin: any, paths: (string | null | undefined)[]) {
+  const list = [...new Set(paths.filter(Boolean))] as string[];
+  if (!list.length) return {} as Record<string, string>;
+  const { data, error } = await admin.storage.from("credentials").createSignedUrls(list, LINK_TTL_SECONDS);
+  if (error) console.error("signing document links failed:", error.message);
+  return Object.fromEntries((data || []).filter((d: any) => d.signedUrl).map((d: any) => [d.path, d.signedUrl])) as Record<string, string>;
 }

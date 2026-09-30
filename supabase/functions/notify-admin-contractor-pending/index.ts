@@ -65,15 +65,20 @@ Deno.serve(async (req) => {
     if (cErr) { console.error("contractor lookup failed:", cErr.message); return json({ error: cErr.message }, 500); }
     if (!contractor) { console.log("skip: no contractor row for user"); return json({ skipped: "no contractor row" }, 200); }
     if (contractor.verified) { console.log("skip: already verified"); return json({ skipped: "already verified" }, 200); }
+    const { data: creds } = await admin
+      .from("contractor_credentials").select("*").eq("contractor_id", contractor.id).maybeSingle();
+    const cc = creds || {};
     // Business license + insurance are required for every provider; a trade
     // license only exists for services whose document policy asks for one.
-    const licenseUrl = contractor.business_license_url || contractor.license_url;
-    if (!licenseUrl || !contractor.insurance_url) {
-      console.log("skip: missing docs", { license: !!licenseUrl, insurance: !!contractor.insurance_url });
+    const licensePath = cc.business_license_path || cc.license_path;
+    if (!licensePath || !cc.insurance_path) {
+      console.log("skip: missing docs", { license: !!licensePath, insurance: !!cc.insurance_path });
       return json({ skipped: "missing docs" }, 200);
     }
     const services = Array.isArray(contractor.trades) && contractor.trades.length ? contractor.trades.join(", ") : (contractor.trade || "");
-    const tradeLicenses = Object.entries(contractor.trade_licenses || {}) as [string, { type?: string; number?: string; url?: string }][];
+    const tradeLicenses = Object.entries(cc.trade_licenses || {}) as [string, { type?: string; number?: string; path?: string }][];
+    const links = await signDocs(admin, [cc.business_license_path, cc.license_path, cc.insurance_path, cc.bond_path, ...tradeLicenses.map(([, tl]) => tl.path)]);
+    const link = (path?: string | null) => (path && links[path] ? ` <a href="${links[path]}" style="color:#0369a1;">view</a>` : "");
     console.log("contractor:", contractor.name, "trades:", contractor.trades);
 
     const { data: admins, error: aErr } = await admin.from("admins").select("email");
@@ -106,11 +111,13 @@ Deno.serve(async (req) => {
     <table style="border-collapse:collapse;margin:0 0 16px;font-size:14px;color:#0f172a;">
       <tr><td style="padding:4px 12px 4px 0;color:#64748b;">Services</td><td>${escape(services)}</td></tr>
       <tr><td style="padding:4px 12px 4px 0;color:#64748b;">Location</td><td>${escape(contractor.location)}</td></tr>
-      ${contractor.business_license_url ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b;">Business license</td><td>${contractor.business_license_number ? "#" + escape(contractor.business_license_number) : ""} <a href="${contractor.business_license_url}" style="color:#0369a1;">view</a></td></tr>` : ""}
-      ${tradeLicenses.map(([t, tl]) => `<tr><td style="padding:4px 12px 4px 0;color:#64748b;">${escape(tl.type || "Trade license")}</td><td>${escape(t)}${tl.number ? " #" + escape(tl.number) : ""}${tl.url ? ` <a href="${tl.url}" style="color:#0369a1;">view</a>` : ""}</td></tr>`).join("")}
-      <tr><td style="padding:4px 12px 4px 0;color:#64748b;">Insurance</td><td>${escape(contractor.insurance_carrier || "")} (expires ${escape(contractor.insurance_expires_at || "")}) <a href="${contractor.insurance_url}" style="color:#0369a1;">view</a></td></tr>
-      ${contractor.bond_url ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b;">Bond</td><td><a href="${contractor.bond_url}" style="color:#0369a1;">view</a></td></tr>` : ""}
+      ${cc.business_license_path ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b;">Business license</td><td>${cc.business_license_number ? "#" + escape(cc.business_license_number) : ""}${link(cc.business_license_path)}</td></tr>` : ""}
+      ${!tradeLicenses.length && cc.license_path ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b;">${escape(cc.license_type || "Trade license")}</td><td>${cc.license_number ? "#" + escape(cc.license_number) : ""}${link(cc.license_path)}</td></tr>` : ""}
+      ${tradeLicenses.map(([t, tl]) => `<tr><td style="padding:4px 12px 4px 0;color:#64748b;">${escape(tl.type || "Trade license")}</td><td>${escape(t)}${tl.number ? " #" + escape(tl.number) : ""}${link(tl.path)}</td></tr>`).join("")}
+      <tr><td style="padding:4px 12px 4px 0;color:#64748b;">Insurance</td><td>${escape(cc.insurance_carrier || "")} (expires ${escape(cc.insurance_expires_at || "")})${link(cc.insurance_path)}</td></tr>
+      ${cc.bond_path ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b;">Bond</td><td>${link(cc.bond_path)}</td></tr>` : ""}
     </table>
+    <p style="color:#64748b;font-size:12px;margin:0 0 16px;">Document links expire in 7 days. You can always open them from the admin dashboard.</p>
     ${appUrl ? `<p><a href="${appUrl}" style="display:inline-block;background:#f59e0b;color:#0f172a;padding:12px 24px;text-decoration:none;border-radius:10px;font-weight:700;">Open Admin Dashboard</a></p>` : ""}
     <p style="color:#94a3b8;font-size:12px;margin-top:24px;">You're receiving this because you're an admin on Subcontractor Pros.</p>
   </div>
@@ -119,10 +126,11 @@ Deno.serve(async (req) => {
     const text = [
       `${contractor.name} (${services}) uploaded credentials and needs verification.`,
       "",
-      contractor.business_license_url ? `Business license: ${contractor.business_license_number ? "#" + contractor.business_license_number + " " : ""}${contractor.business_license_url}` : "",
-      ...tradeLicenses.map(([t, tl]) => `${tl.type || "Trade license"} (${t}): ${tl.number ? "#" + tl.number + " " : ""}${tl.url || ""}`),
-      `Insurance:   ${contractor.insurance_carrier || ""}${contractor.insurance_expires_at ? ` (expires ${contractor.insurance_expires_at})` : ""}`,
-      `COI:         ${contractor.insurance_url}`,
+      cc.business_license_path ? `Business license: ${cc.business_license_number ? "#" + cc.business_license_number + " " : ""}${links[cc.business_license_path] || ""}` : "",
+      ...tradeLicenses.map(([t, tl]) => `${tl.type || "Trade license"} (${t}): ${tl.number ? "#" + tl.number + " " : ""}${(tl.path && links[tl.path]) || ""}`),
+      `Insurance:   ${cc.insurance_carrier || ""}${cc.insurance_expires_at ? ` (expires ${cc.insurance_expires_at})` : ""}`,
+      `COI:         ${links[cc.insurance_path] || ""}`,
+      "Document links expire in 7 days.",
       "",
       appUrl ? `Open admin dashboard: ${appUrl}` : "",
     ].filter(Boolean).join("\n");
@@ -200,4 +208,15 @@ function escape(s: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+const LINK_TTL_SECONDS = 60 * 60 * 24 * 7;
+
+// Documents live in a private bucket; emails carry 7-day signed links.
+async function signDocs(admin: any, paths: (string | null | undefined)[]) {
+  const list = [...new Set(paths.filter(Boolean))] as string[];
+  if (!list.length) return {} as Record<string, string>;
+  const { data, error } = await admin.storage.from("credentials").createSignedUrls(list, LINK_TTL_SECONDS);
+  if (error) console.error("signing document links failed:", error.message);
+  return Object.fromEntries((data || []).filter((d: any) => d.signedUrl).map((d: any) => [d.path, d.signedUrl])) as Record<string, string>;
 }
