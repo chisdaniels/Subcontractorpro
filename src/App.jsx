@@ -1416,6 +1416,13 @@ function avatarInitials(name) {
                       <button
                         className="user-menu-item"
                         role="menuitem"
+                        onClick={() => { setUserMenuOpen(false); window.location.reload(); }}
+                      >
+                        Refresh
+                      </button>
+                      <button
+                        className="user-menu-item"
+                        role="menuitem"
                         onClick={() => { signOut(); setUserMenuOpen(false); }}
                       >
                         Sign Out
