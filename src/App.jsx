@@ -3,6 +3,27 @@ import { supabase } from "./lib/supabase";
 
 const FALLBACK_TRADES = ["General Contractor", "Plumber", "Electrician", "Roofer", "Carpenter", "Mason", "Flooring Installer", "Cabinets", "Countertops", "Landscaping", "Dirt Work", "Painting", "Sheetrock"];
 
+const TAB_PATHS = {
+  search:   "/",
+  post:     "/post",
+  jobs:     "/jobs",
+  myjobs:   "/my-jobs",
+  messages: "/messages",
+  reviews:  "/reviews",
+  admin:    "/admin",
+};
+const PATH_TABS = Object.fromEntries(Object.entries(TAB_PATHS).map(([t, p]) => [p, t]));
+
+function pathToTab(pathname, hash) {
+  // Legacy: old links used /#admin, /#messages, etc.
+  if (pathname === "/" && hash) {
+    const h = hash.replace(/^#/, "");
+    if (Object.prototype.hasOwnProperty.call(TAB_PATHS, h)) return h;
+  }
+  const clean = (pathname || "/").replace(/\/+$/, "") || "/";
+  return PATH_TABS[clean] || "search";
+}
+
 const AVATAR_COLORS = { IR: "#b45309", BS: "#0369a1", VP: "#7c3aed", AR: "#b91c1c", CC: "#047857", TK: "#374151" };
 
 function Stars({ rating }) {
@@ -101,8 +122,7 @@ function Avatar({ initials, size = 48 }) {
 export default function App() {
   const [tab, setTab] = useState(() => {
     if (typeof window === "undefined") return "search";
-    const h = window.location.hash.replace(/^#/, "");
-    return ["search", "post", "jobs", "myjobs", "messages", "reviews", "admin"].includes(h) ? h : "search";
+    return pathToTab(window.location.pathname, window.location.hash);
   });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [trade, setTrade] = useState("All Trades");
@@ -204,22 +224,19 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const target = `#${tab}`;
-    if (window.location.hash !== target) {
-      window.history.replaceState(null, "", target);
+    const targetPath = TAB_PATHS[tab] || "/";
+    if (window.location.pathname !== targetPath || window.location.hash) {
+      window.history.replaceState(null, "", targetPath);
     }
   }, [tab]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onHash = () => {
-      const h = window.location.hash.replace(/^#/, "");
-      if (["search", "post", "jobs", "myjobs", "messages", "reviews", "admin"].includes(h)) {
-        setTab(h);
-      }
+    const onPop = () => {
+      setTab(pathToTab(window.location.pathname, window.location.hash));
     };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   useEffect(() => {
