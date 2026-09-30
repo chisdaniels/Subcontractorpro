@@ -783,6 +783,12 @@ export default function App() {
     const { error } = await supabase.from("support_tickets").update(patch).eq("id", ticket.id);
     if (error) { notify("Update failed: " + error.message); return; }
     setSupportTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, ...patch } : t));
+    // If we just closed a ticket, email the submitter that it's resolved.
+    if (patch.status === "closed" && ticket.status !== "closed") {
+      supabase.functions
+        .invoke("notify-support-ticket-closed", { body: { ticketId: ticket.id } })
+        .catch(err => console.error("notify closed failed:", err));
+    }
   }
 
   async function saveCustomerProfile(e) {
