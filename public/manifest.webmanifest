@@ -1,0 +1,21 @@
+{
+  "name": "Subcontractor Pros",
+  "short_name": "SubPros",
+  "description": "Post construction and home service jobs. Get matched with verified, licensed, and insured contractors.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Post a Job", "short_name": "Post", "url": "/post" },
+    { "name": "Find a Pro",  "short_name": "Find", "url": "/" },
+    { "name": "My Jobs",     "short_name": "My Jobs", "url": "/my-jobs" }
+  ]
+}

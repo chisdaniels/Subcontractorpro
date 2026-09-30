@@ -176,6 +176,9 @@ export default function App() {
   const [shareModal, setShareModal] = useState(false);
   const [shareInput, setShareInput] = useState({ clientEmail: "", clientName: "", message: "" });
   const [shareBusy, setShareBusy] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [iosInstallModal, setIosInstallModal] = useState(false);
   const [jobReleases, setJobReleases] = useState([]);
   const [supportTickets, setSupportTickets] = useState([]);
   const [myContractor, setMyContractor] = useState(null);
@@ -238,6 +241,45 @@ export default function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    // Chrome / Edge / Android — the browser fires this when the app is
+    // installable. We capture and defer the prompt so we can show our own
+    // "Install app" menu item and call prompt() later.
+    const onBip = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    const onInstalled = () => { setInstallPrompt(null); setIsInstalled(true); };
+    window.addEventListener("beforeinstallprompt", onBip);
+    window.addEventListener("appinstalled", onInstalled);
+    // Detect "already installed" state (running in standalone).
+    const standalone = window.matchMedia?.("(display-mode: standalone)").matches
+      || window.navigator.standalone === true;
+    if (standalone) setIsInstalled(true);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBip);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  function isIOS() {
+    if (typeof navigator === "undefined") return false;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  }
+
+  async function triggerInstall() {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted") setIsInstalled(true);
+      setInstallPrompt(null);
+      return;
+    }
+    if (isIOS()) {
+      setIosInstallModal(true);
+      return;
+    }
+    notify("Use your browser's menu to add this app to your device.");
+  }
 
   useEffect(() => {
     (async () => {
@@ -1346,6 +1388,15 @@ function avatarInitials(name) {
                           Share License &amp; Insurance
                         </button>
                       )}
+                      {!isInstalled && (
+                        <button
+                          className="user-menu-item"
+                          role="menuitem"
+                          onClick={() => { triggerInstall(); setUserMenuOpen(false); }}
+                        >
+                          Install App
+                        </button>
+                      )}
                       <button
                         className="user-menu-item"
                         role="menuitem"
@@ -1366,6 +1417,11 @@ function avatarInitials(name) {
               </>
             ) : (
               <>
+                {!isInstalled && (
+                  <button className="btn btn-outline btn-sm" onClick={triggerInstall}>
+                    Install
+                  </button>
+                )}
                 <button
                   className="btn btn-outline btn-sm"
                   onClick={() => setSupportModal(true)}
@@ -3230,6 +3286,30 @@ function avatarInitials(name) {
                 {releaseBusy ? "Releasing..." : "Release & Relist Job"}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* iOS INSTALL INSTRUCTIONS */}
+      {iosInstallModal && (
+        <div className="modal-bg" onClick={() => setIosInstallModal(false)} role="presentation">
+          <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>INSTALL ON IPHONE</h2>
+              <button className="btn btn-outline btn-sm" onClick={() => setIosInstallModal(false)} aria-label="Close">✕</button>
+            </div>
+            <ol style={{ color: "#e2e8f0", lineHeight: 1.8, fontSize: 15, paddingLeft: 20, marginBottom: 16 }}>
+              <li>Make sure you're in <strong>Safari</strong> (this doesn't work in Chrome or Firefox on iOS).</li>
+              <li>Tap the <strong>Share</strong> icon at the bottom center — a square with an arrow pointing up.</li>
+              <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
+              <li>Tap <strong>Add</strong> in the top right.</li>
+            </ol>
+            <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 14, background: "#0f172a", borderRadius: 8, padding: 12 }}>
+              You'll get an app icon on your home screen that opens Subcontractor Pros full-screen, no browser bar.
+            </div>
+            <button type="button" className="btn btn-gold" style={{ width: "100%" }} onClick={() => setIosInstallModal(false)}>
+              Got it
+            </button>
           </div>
         </div>
       )}
