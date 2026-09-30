@@ -122,7 +122,7 @@ export default function App() {
   const [myReviewedJobIds, setMyReviewedJobIds] = useState(new Set());
   const [modal, setModal] = useState(null);
   const [jobs, setJobs] = useState([]);
-  const [jobForm, setJobForm] = useState({ title: "", trade: "Plumber", location: "", budget: "", desc: "", homeowner_name: "", homeowner_email: "", homeowner_phone: "" });
+  const [jobForm, setJobForm] = useState({ title: "", trades: [], location: "", budget: "", desc: "", homeowner_name: "", homeowner_email: "", homeowner_phone: "" });
   const [notification, setNotification] = useState(null);
   const [user, setUser] = useState(null);
   const [authModal, setAuthModal] = useState(false);
@@ -544,9 +544,11 @@ export default function App() {
 
   async function postJob() {
     if (!jobForm.title || !jobForm.location || !jobForm.homeowner_name || !jobForm.homeowner_email) return;
-    const { error } = await supabase.from("jobs").insert({
+    if (!jobForm.trades.length) { notify("Pick at least one trade you need."); return; }
+    const groupId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    const rows = jobForm.trades.map(t => ({
       title: jobForm.title,
-      trade: jobForm.trade,
+      trade: t,
       location: jobForm.location,
       budget: jobForm.budget ? Number(jobForm.budget) : null,
       description: jobForm.desc,
@@ -554,21 +556,24 @@ export default function App() {
       homeowner_email: jobForm.homeowner_email.trim(),
       homeowner_phone: jobForm.homeowner_phone.trim() || null,
       posted_by: user?.id ?? null,
-    });
+      group_id: groupId,
+    }));
+    const { error } = await supabase.from("jobs").insert(rows);
     if (error) {
       notify("Failed to post job: " + error.message);
       return;
     }
-    // Save the poster's defaults so next time we prefill.
     if (user) {
       await supabase.auth.updateUser({ data: {
         homeowner_name:  jobForm.homeowner_name.trim(),
         homeowner_phone: jobForm.homeowner_phone.trim() || null,
       }});
     }
-    setJobForm({ title: "", trade: "Plumber", location: "", budget: "", desc: "", homeowner_name: "", homeowner_email: "", homeowner_phone: "" });
+    setJobForm({ title: "", trades: [], location: "", budget: "", desc: "", homeowner_name: "", homeowner_email: "", homeowner_phone: "" });
     await loadJobs();
-    notify("Job posted! Contractors will reach out shortly.");
+    notify(jobForm.trades.length > 1
+      ? `Job posted with ${jobForm.trades.length} trades. Each stays open until a matching contractor accepts.`
+      : "Job posted! Contractors will reach out shortly.");
   }
 
   function openJobEdit(job) {
@@ -1034,6 +1039,11 @@ function avatarInitials(name) {
     if (!isContractorVerified(myContractor)) {
       notify("Upload your license + insurance to accept jobs.");
       openProfileModal();
+      return;
+    }
+    const jobToAccept = jobs.find(j => j.id === jobId);
+    if (jobToAccept && !contractorTrades(myContractor).includes(jobToAccept.trade)) {
+      notify(`This job needs a ${jobToAccept.trade}. Add that trade to your profile to accept it.`);
       return;
     }
     const { data, error } = await supabase
@@ -1528,24 +1538,50 @@ function avatarInitials(name) {
                   aria-required="true"
                 />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="job-grid">
-                <div>
-                  <label htmlFor="job-trade" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Trade Needed</label>
-                  <select id="job-trade" value={jobForm.trade} onChange={e => setJobForm(f => ({ ...f, trade: e.target.value }))}>
-                    {TRADES.filter(t => t !== "All Trades").map(t => <option key={t}>{t}</option>)}
-                  </select>
+              <div>
+                <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>
+                  Trades Needed * <span style={{ color: "#64748b" }}>(pick one or more — each becomes a separate sub-job that a matching contractor can accept)</span>
                 </div>
-                <div>
-                  <label htmlFor="job-budget" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Budget ($)</label>
-                  <input
-                    id="job-budget"
-                    placeholder="e.g. 5000"
-                    value={jobForm.budget}
-                    onChange={e => setJobForm(f => ({ ...f, budget: e.target.value }))}
-                    type="number"
-                    min="0"
-                  />
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+                  {tradeTypes.map(t => {
+                    const checked = jobForm.trades.includes(t);
+                    return (
+                      <label
+                        key={t}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "8px 10px", borderRadius: 8,
+                          background: checked ? "rgba(245,158,11,0.12)" : "#0f172a",
+                          border: `1px solid ${checked ? "#f59e0b" : "#334155"}`,
+                          cursor: "pointer", fontSize: 13,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={e => setJobForm(f => {
+                            const next = new Set(f.trades);
+                            if (e.target.checked) next.add(t); else next.delete(t);
+                            return { ...f, trades: Array.from(next) };
+                          })}
+                          style={{ width: "auto", accentColor: "#f59e0b" }}
+                        />
+                        {t}
+                      </label>
+                    );
+                  })}
                 </div>
+              </div>
+              <div>
+                <label htmlFor="job-budget" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Budget ($) <span style={{ color: "#64748b" }}>(total across all trades)</span></label>
+                <input
+                  id="job-budget"
+                  placeholder="e.g. 5000"
+                  value={jobForm.budget}
+                  onChange={e => setJobForm(f => ({ ...f, budget: e.target.value }))}
+                  type="number"
+                  min="0"
+                />
               </div>
               <div>
                 <label htmlFor="job-location" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
@@ -1808,12 +1844,15 @@ function avatarInitials(name) {
                         </div>
                         {!j.accepted_by && (() => {
                           const verified = isContractorVerified(myContractor);
-                          const blocked  = !myContractor || !verified;
+                          const tradeMatch = myContractor && contractorTrades(myContractor).includes(j.trade);
+                          const blocked  = !myContractor || !verified || !tradeMatch;
                           const title = !myContractor
                             ? "Create your profile first"
                             : !verified
                               ? "Upload license & insurance to accept jobs"
-                              : undefined;
+                              : !tradeMatch
+                                ? `Needs a ${j.trade} — add that trade to your profile to accept`
+                                : undefined;
                           return (
                             <button
                               className="btn btn-gold btn-sm"
