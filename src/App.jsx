@@ -153,6 +153,9 @@ export default function App() {
   const [supportModal, setSupportModal] = useState(false);
   const [supportInput, setSupportInput] = useState({ subject: "", body: "" });
   const [supportBusy, setSupportBusy] = useState(false);
+  const [shareModal, setShareModal] = useState(false);
+  const [shareInput, setShareInput] = useState({ clientEmail: "", clientName: "", message: "" });
+  const [shareBusy, setShareBusy] = useState(false);
   const [jobReleases, setJobReleases] = useState([]);
   const [supportTickets, setSupportTickets] = useState([]);
   const [myContractor, setMyContractor] = useState(null);
@@ -779,6 +782,32 @@ export default function App() {
     }
   }
 
+  async function submitShareCredentials(e) {
+    e.preventDefault();
+    setShareBusy(true);
+    try {
+      if (!isContractorVerified(myContractor)) {
+        throw new Error("Your profile needs to be verified before you can share credentials.");
+      }
+      const r = await supabase.functions.invoke("share-credentials-with-client", {
+        body: {
+          clientEmail: shareInput.clientEmail.trim(),
+          clientName:  shareInput.clientName.trim() || undefined,
+          message:     shareInput.message.trim() || undefined,
+        },
+      });
+      if (r.error) throw new Error(r.error.message || String(r.error));
+      if (r.data?.error) throw new Error(r.data.error);
+      setShareModal(false);
+      setShareInput({ clientEmail: "", clientName: "", message: "" });
+      notify(`License & insurance sent to ${r.data?.to || shareInput.clientEmail}.`);
+    } catch (err) {
+      notify("Send failed: " + err.message);
+    } finally {
+      setShareBusy(false);
+    }
+  }
+
   async function adminUpdateTicket(ticket, patch) {
     const { error } = await supabase.from("support_tickets").update(patch).eq("id", ticket.id);
     if (error) { notify("Update failed: " + error.message); return; }
@@ -1291,6 +1320,15 @@ function avatarInitials(name) {
                       >
                         {myContractor ? "Edit Contractor Profile" : "Become a Contractor"}
                       </button>
+                      {isContractorVerified(myContractor) && (
+                        <button
+                          className="user-menu-item"
+                          role="menuitem"
+                          onClick={() => { setShareModal(true); setUserMenuOpen(false); }}
+                        >
+                          Share License &amp; Insurance
+                        </button>
+                      )}
                       <button
                         className="user-menu-item"
                         role="menuitem"
@@ -3173,6 +3211,59 @@ function avatarInitials(name) {
               </div>
               <button type="submit" className="btn btn-gold" disabled={releaseBusy}>
                 {releaseBusy ? "Releasing..." : "Release & Relist Job"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SHARE CREDENTIALS MODAL */}
+      {shareModal && (
+        <div className="modal-bg" onClick={() => setShareModal(false)} role="presentation">
+          <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>SHARE LICENSE &amp; INSURANCE</h2>
+              <button className="btn btn-outline btn-sm" onClick={() => setShareModal(false)} aria-label="Close">✕</button>
+            </div>
+            <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14 }}>
+              We'll email your verified license, insurance details, and links to the actual documents to whoever you enter below. Great for prospective clients who ask for proof before hiring.
+            </p>
+            <form onSubmit={submitShareCredentials} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label htmlFor="sh-email" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Client's Email *</label>
+                <input
+                  id="sh-email"
+                  type="email"
+                  required
+                  placeholder="client@example.com"
+                  value={shareInput.clientEmail}
+                  onChange={e => setShareInput(s => ({ ...s, clientEmail: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="sh-name" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Client's Name (optional)</label>
+                <input
+                  id="sh-name"
+                  placeholder="e.g. John"
+                  value={shareInput.clientName}
+                  onChange={e => setShareInput(s => ({ ...s, clientName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="sh-message" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Note (optional)</label>
+                <textarea
+                  id="sh-message"
+                  rows={4}
+                  placeholder="Here are my credentials for the kitchen remodel we discussed..."
+                  value={shareInput.message}
+                  onChange={e => setShareInput(s => ({ ...s, message: e.target.value }))}
+                />
+              </div>
+              <div style={{ fontSize: 11, color: "#64748b" }}>
+                Replies to this email will come straight to your address ({user?.email}).
+              </div>
+              <button type="submit" className="btn btn-gold" disabled={shareBusy}>
+                {shareBusy ? "Sending..." : "Send Credentials"}
               </button>
             </form>
           </div>
