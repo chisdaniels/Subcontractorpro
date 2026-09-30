@@ -3,59 +3,27 @@ import { supabase } from "./lib/supabase";
 
 const FALLBACK_TRADES = ["General Contractor", "Plumber", "Electrician", "Roofer", "Carpenter", "Mason", "Flooring Installer", "Cabinets", "Countertops", "Landscaping", "Dirt Work", "Painting", "Sheetrock"];
 
-// Trade-specific documentation rules based on typical US state licensing.
-// State laws vary — we ask for the license/bond when the trade generally
-// requires it. If a trade isn't listed here, only the universal Business
-// License + General Liability Insurance are required.
-//
-// Research notes (US, majority-state approach):
-//   * Plumber / Electrician       — all 50 states require a state license
-//                                   + almost always a surety bond.
-//   * General Contractor          — ~48/50 states require a contractor's
-//                                   license for jobs over $500–$2,000
-//                                   and a bond.
-//   * Roofer                      — about half of states have a specific
-//                                   roofing license; others require the
-//                                   GC license. Bonding common.
-//   * Dirt Work / Excavation      — excavation touching utility lines
-//                                   usually requires an excavation /
-//                                   utility contractor license + bond.
-//   * Landscaping                 — generic lawn care needs no license.
-//                                   Landscape architects, licensed
-//                                   pesticide applicators, and licensed
-//                                   irrigation/hardscape contractors are
-//                                   separate professions and would be
-//                                   added as their own trade types.
-//   * Carpenter, Mason, Flooring
-//     Installer, Cabinets,
-//     Countertops, Painting,
-//     Sheetrock                    — no state-specific license required
-//                                   for typical residential work.
-//                                   (Painting pre-1978 homes needs the
-//                                   federal EPA RRP cert; that's tracked
-//                                   separately when it applies.)
-const TRADE_REQUIREMENTS = {
-  "Plumber":             { tradeLicense: "State Plumbing License",                bonded: true },
-  "Electrician":         { tradeLicense: "State Electrical License",              bonded: true },
-  "General Contractor":  { tradeLicense: "State Contractor's License",            bonded: true },
-  "Roofer":              { tradeLicense: "State Contractor / Roofing License",    bonded: true },
-  "Dirt Work":           { tradeLicense: "Excavation / Utility Contractor License", bonded: true },
-};
-
-function requirementsFor(trades) {
-  const list = Array.isArray(trades) ? trades : [];
-  const tradeLicenseNames = new Set();
-  let needsBond = false;
-  for (const t of list) {
-    const req = TRADE_REQUIREMENTS[t];
-    if (!req) continue;
-    if (req.tradeLicense) tradeLicenseNames.add(req.tradeLicense);
-    if (req.bonded) needsBond = true;
-  }
-  return {
-    needsTradeLicense: tradeLicenseNames.size > 0,
-    tradeLicenseNames: Array.from(tradeLicenseNames),
-    needsBond,
+// Trade-specific documentation rules now live in the trade_types table
+// (columns trade_license_label + requires_bond). The frontend loads them
+// into `tradeReqMap` at boot; the helper `makeRequirementsFor(map)` builds
+// a resolver bound to that map. State laws vary — admins can adjust each
+// trade's requirements from the Admin dashboard without a code deploy.
+function makeRequirementsFor(reqMap) {
+  return function requirementsFor(trades) {
+    const list = Array.isArray(trades) ? trades : [];
+    const tradeLicenseNames = new Set();
+    let needsBond = false;
+    for (const t of list) {
+      const req = reqMap?.[t];
+      if (!req) continue;
+      if (req.tradeLicense) tradeLicenseNames.add(req.tradeLicense);
+      if (req.bonded) needsBond = true;
+    }
+    return {
+      needsTradeLicense: tradeLicenseNames.size > 0,
+      tradeLicenseNames: Array.from(tradeLicenseNames),
+      needsBond,
+    };
   };
 }
 
@@ -215,7 +183,10 @@ export default function App() {
   const [adminInviteInput, setAdminInviteInput] = useState("");
   const [adminBusy, setAdminBusy] = useState(false);
   const [tradeTypes, setTradeTypes] = useState(FALLBACK_TRADES);
+  const [tradeReqMap, setTradeReqMap] = useState({});
   const [newTradeInput, setNewTradeInput] = useState("");
+  const [tradeEditingName, setTradeEditingName] = useState(null); // trade currently being edited
+  const [tradeEditForm, setTradeEditForm] = useState({ name: "", license_label: "", requires_bond: false });
   const [customerProfileModal, setCustomerProfileModal] = useState(false);
   const [customerProfile, setCustomerProfile] = useState({ homeowner_name: "", homeowner_phone: "" });
   const [jobEditModal, setJobEditModal] = useState(null);
@@ -345,13 +316,28 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.from("trade_types").select("name").order("name");
+      const { data, error } = await supabase
+        .from("trade_types")
+        .select("name, trade_license_label, requires_bond")
+        .order("name");
       if (error) { console.error("trade_types load failed:", error); return; }
-      if (data && data.length) setTradeTypes(data.map(r => r.name));
+      if (data && data.length) {
+        setTradeTypes(data.map(r => r.name));
+        const map = {};
+        for (const r of data) {
+          map[r.name] = {
+            tradeLicense: r.trade_license_label || null,
+            bonded: !!r.requires_bond,
+          };
+        }
+        setTradeReqMap(map);
+      }
     })();
   }, []);
 
   const TRADES = ["All Trades", ...tradeTypes];
+  const requirementsFor = makeRequirementsFor(tradeReqMap);
+  const TRADE_REQUIREMENTS = tradeReqMap; // legacy alias kept for existing render blocks
 
   useEffect(() => {
     if (!user) { setIsAdmin(false); setAdminChecked(authState !== "loading"); return; }
@@ -1054,12 +1040,87 @@ export default function App() {
     const name = newTradeInput.trim();
     if (!name) return;
     setAdminBusy(true);
-    const { error } = await supabase.from("trade_types").insert({ name });
+    const { error } = await supabase.from("trade_types").insert({
+      name,
+      trade_license_label: null,
+      requires_bond: false,
+    });
     setAdminBusy(false);
     if (error) { notify("Add trade failed: " + error.message); return; }
     setTradeTypes(prev => [...new Set([...prev, name])].sort());
+    setTradeReqMap(prev => ({ ...prev, [name]: { tradeLicense: null, bonded: false } }));
     setNewTradeInput("");
-    notify(`Added ${name}.`);
+    notify(`Added ${name}. Use Edit to set license and bond requirements.`);
+  }
+
+  function openTradeEdit(name) {
+    const req = tradeReqMap[name] || {};
+    setTradeEditForm({
+      name,
+      license_label: req.tradeLicense || "",
+      requires_bond: !!req.bonded,
+    });
+    setTradeEditingName(name);
+  }
+
+  async function submitTradeEdit(e) {
+    e.preventDefault();
+    if (!tradeEditingName) return;
+    setAdminBusy(true);
+    try {
+      const originalName = tradeEditingName;
+      const newName = tradeEditForm.name.trim();
+      if (!newName) throw new Error("Trade name is required.");
+
+      // Rename cascade if the name changed.
+      if (newName !== originalName) {
+        const { error: rErr } = await supabase.rpc("rename_trade", {
+          old_name: originalName,
+          new_name: newName,
+        });
+        if (rErr) throw new Error("Rename failed: " + rErr.message);
+      }
+
+      // Push the license label + bond changes.
+      const { error: uErr } = await supabase
+        .from("trade_types")
+        .update({
+          trade_license_label: tradeEditForm.license_label.trim() || null,
+          requires_bond: !!tradeEditForm.requires_bond,
+        })
+        .eq("name", newName);
+      if (uErr) throw new Error("Save failed: " + uErr.message);
+
+      // Refresh local state.
+      setTradeTypes(prev => {
+        const set = new Set(prev.filter(t => t !== originalName));
+        set.add(newName);
+        return Array.from(set).sort();
+      });
+      setTradeReqMap(prev => {
+        const next = { ...prev };
+        if (newName !== originalName) delete next[originalName];
+        next[newName] = {
+          tradeLicense: tradeEditForm.license_label.trim() || null,
+          bonded: !!tradeEditForm.requires_bond,
+        };
+        return next;
+      });
+      // If a contractor references the renamed trade in state, keep them consistent.
+      if (newName !== originalName) {
+        setContractors(prev => prev.map(c => {
+          const trades = Array.isArray(c.trades) ? c.trades.map(t => t === originalName ? newName : t) : c.trades;
+          const trade = c.trade === originalName ? newName : c.trade;
+          return { ...c, trades, trade };
+        }));
+      }
+      setTradeEditingName(null);
+      notify(`Updated ${newName}.`);
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      setAdminBusy(false);
+    }
   }
 
   async function adminRemoveTrade(name) {
@@ -2801,12 +2862,47 @@ function avatarInitials(name) {
               <button type="submit" className="btn btn-gold" disabled={adminBusy}>Add Trade</button>
             </form>
             <div style={{ display: "grid", gap: 6, marginBottom: 32 }}>
-              {tradeTypes.map(t => (
-                <div key={t} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "#0f172a", borderRadius: 8, fontSize: 13 }}>
-                  <span>{t}</span>
-                  <button className="btn btn-outline btn-sm" onClick={() => adminRemoveTrade(t)}>Remove</button>
-                </div>
-              ))}
+              {tradeTypes.map(t => {
+                const req = tradeReqMap[t] || {};
+                const editing = tradeEditingName === t;
+                if (editing) {
+                  return (
+                    <form key={t} onSubmit={submitTradeEdit} style={{ padding: 12, background: "#0f172a", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div>
+                        <label style={{ fontSize: 12, color: "#94a3b8", marginBottom: 4, display: "block" }}>Trade name</label>
+                        <input required value={tradeEditForm.name} onChange={e => setTradeEditForm(f => ({ ...f, name: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 12, color: "#94a3b8", marginBottom: 4, display: "block" }}>Trade License Label <span style={{ color: "#64748b" }}>(leave blank if no license required)</span></label>
+                        <input placeholder="e.g. State Plumbing License" value={tradeEditForm.license_label} onChange={e => setTradeEditForm(f => ({ ...f, license_label: e.target.value }))} />
+                      </div>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#f1f5f9", cursor: "pointer" }}>
+                        <input type="checkbox" checked={tradeEditForm.requires_bond} onChange={e => setTradeEditForm(f => ({ ...f, requires_bond: e.target.checked }))} style={{ width: "auto", accentColor: "#f59e0b" }} />
+                        Requires surety bond
+                      </label>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button type="submit" className="btn btn-gold btn-sm" disabled={adminBusy}>Save</button>
+                        <button type="button" className="btn btn-outline btn-sm" onClick={() => setTradeEditingName(null)}>Cancel</button>
+                      </div>
+                    </form>
+                  );
+                }
+                return (
+                  <div key={t} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#0f172a", borderRadius: 8, fontSize: 13, gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 600 }}>{t}</div>
+                      <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                        {req.tradeLicense ? `Requires: ${req.tradeLicense}` : "No trade license required"}
+                        {req.bonded ? " · Bonded" : ""}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button className="btn btn-outline btn-sm" onClick={() => openTradeEdit(t)}>Edit</button>
+                      <button className="btn btn-outline btn-sm" onClick={() => adminRemoveTrade(t)}>Remove</button>
+                    </div>
+                  </div>
+                );
+              })}
               {tradeTypes.length === 0 && (
                 <div style={{ color: "#475569", padding: 12 }}>No trades yet — add one above.</div>
               )}
