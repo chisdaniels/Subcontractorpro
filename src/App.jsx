@@ -7,16 +7,39 @@ const FALLBACK_TRADES = ["General Contractor", "Plumber", "Electrician", "Roofer
 // State laws vary — we ask for the license/bond when the trade generally
 // requires it. If a trade isn't listed here, only the universal Business
 // License + General Liability Insurance are required.
+//
+// Research notes (US, majority-state approach):
+//   * Plumber / Electrician       — all 50 states require a state license
+//                                   + almost always a surety bond.
+//   * General Contractor          — ~48/50 states require a contractor's
+//                                   license for jobs over $500–$2,000
+//                                   and a bond.
+//   * Roofer                      — about half of states have a specific
+//                                   roofing license; others require the
+//                                   GC license. Bonding common.
+//   * Dirt Work / Excavation      — excavation touching utility lines
+//                                   usually requires an excavation /
+//                                   utility contractor license + bond.
+//   * Landscaping                 — generic lawn care needs no license.
+//                                   Landscape architects, licensed
+//                                   pesticide applicators, and licensed
+//                                   irrigation/hardscape contractors are
+//                                   separate professions and would be
+//                                   added as their own trade types.
+//   * Carpenter, Mason, Flooring
+//     Installer, Cabinets,
+//     Countertops, Painting,
+//     Sheetrock                    — no state-specific license required
+//                                   for typical residential work.
+//                                   (Painting pre-1978 homes needs the
+//                                   federal EPA RRP cert; that's tracked
+//                                   separately when it applies.)
 const TRADE_REQUIREMENTS = {
-  "General Contractor":  { tradeLicense: "General Contractor's License", bonded: true },
-  "Plumber":             { tradeLicense: "Plumbing License",            bonded: true },
-  "Electrician":         { tradeLicense: "Electrical License",          bonded: true },
-  "Roofer":              { tradeLicense: "Roofing License",             bonded: true },
-  "Landscaping":         { tradeLicense: "Landscape Contractor License" },
-  "Dirt Work":           { tradeLicense: "Excavation Contractor License", bonded: true },
-  // The rest — Carpenter, Mason, Flooring Installer, Cabinets, Countertops,
-  // Painting, Sheetrock — need only the universal Business License +
-  // General Liability Insurance in most states.
+  "Plumber":             { tradeLicense: "State Plumbing License",                bonded: true },
+  "Electrician":         { tradeLicense: "State Electrical License",              bonded: true },
+  "General Contractor":  { tradeLicense: "State Contractor's License",            bonded: true },
+  "Roofer":              { tradeLicense: "State Contractor / Roofing License",    bonded: true },
+  "Dirt Work":           { tradeLicense: "Excavation / Utility Contractor License", bonded: true },
 };
 
 function requirementsFor(trades) {
