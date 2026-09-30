@@ -1272,7 +1272,16 @@ function avatarInitials(name) {
   }, [activeChat, messages]);
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#0f172a", minHeight: "100vh", color: "#f1f5f9" }}>
+    <div style={{
+      fontFamily: "'DM Sans', sans-serif",
+      background: "#0f172a",
+      minHeight: "100vh",
+      color: "#f1f5f9",
+      paddingTop: "env(safe-area-inset-top)",
+      paddingLeft: "env(safe-area-inset-left)",
+      paddingRight: "env(safe-area-inset-right)",
+      paddingBottom: "env(safe-area-inset-bottom)",
+    }}>
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { width: 4px; }
@@ -1302,9 +1311,9 @@ function avatarInitials(name) {
         input:focus, textarea:focus, select:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
         .msg-me { background: #f59e0b; color: #0f172a; border-radius: 18px 18px 4px 18px; }
         .msg-them { background: #1e293b; border: 1px solid #334155; border-radius: 18px 18px 18px 4px; }
-        .notification { position: fixed; top: 20px; right: 20px; background: #f59e0b; color: #0f172a; padding: 12px 22px; border-radius: 12px; font-weight: 700; z-index: 999; animation: slidein 0.3s; }
+        .notification { position: fixed; top: calc(env(safe-area-inset-top) + 20px); right: calc(env(safe-area-inset-right) + 20px); background: #f59e0b; color: #0f172a; padding: 12px 22px; border-radius: 12px; font-weight: 700; z-index: 999; animation: slidein 0.3s; }
         @keyframes slidein { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
-        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(2px); overflow-y: auto; }
+        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 100; display: flex; align-items: center; justify-content: center; padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); backdrop-filter: blur(2px); overflow-y: auto; }
         .modal { background: #1e293b; border-radius: 20px; border: 1px solid #334155; width: 100%; max-width: 480px; padding: 28px; max-height: 90vh; overflow-y: auto; overflow-x: hidden; }
         .modal input, .modal textarea, .modal select { max-width: 100%; min-width: 0; }
         .modal input[type="date"] { min-width: 0; }
