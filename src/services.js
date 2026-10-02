@@ -206,10 +206,6 @@ function badgeKind(key) {
   return key === "license" || key.startsWith("trade_license:") ? "trade_license" : key;
 }
 
-export function verifiedCredentialKinds(c) {
-  return new Set((c?.verified_credentials || []).map(badgeKind));
-}
-
 export function verifiedCredentialLabels(c) {
   const keys = c?.verified_credentials || [];
   const order = { business_license: 0, trade_license: 1, insurance: 2, bond: 3 };

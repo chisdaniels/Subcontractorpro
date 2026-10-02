@@ -6,7 +6,7 @@ import AdminServices from "./AdminServices";
 import { CredentialList, CredentialReviewPanel, DocLink, VerifiedCredentialBadges, VerifiedCredentialsSummary, VERIFIED_PRO_MEANING } from "./credentials";
 import {
   REQUIREMENTS_FALLBACK, buildCatalog, contractorCredentials, describeRequirement, resolveRequirements,
-  searchCatalog, verifiedCredentialKinds,
+  searchCatalog,
 } from "./services";
 
 // Platform document policy (trade_types.trade_license_label + requires_bond):
@@ -194,7 +194,6 @@ export default function App() {
   });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [serviceFilter, setServiceFilter] = useState(""); // "" | "group:<slug>" | service name
-  const [credFilter, setCredFilter] = useState("");
   const [onlyMyServices, setOnlyMyServices] = useState(false);
   const [search, setSearch] = useState("");
   const [contractors, setContractors] = useState([]);
@@ -720,7 +719,6 @@ export default function App() {
     if (c.deactivated_at) return false; // hidden from the public board
     const trades = contractorTrades(c);
     if (!serviceFilterMatches(catalog, trades, serviceFilter)) return false;
-    if (credFilter && !verifiedCredentialKinds(c).has(credFilter)) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return c.name.toLowerCase().includes(q) ||
@@ -2179,14 +2177,6 @@ function avatarInitials(name) {
               />
               <label htmlFor="trade-filter" className="sr-only">Filter by service</label>
               <ServiceFilter id="trade-filter" catalog={catalog} value={serviceFilter} onChange={setServiceFilter} />
-              <label htmlFor="cred-filter" className="sr-only">Filter by verified credential</label>
-              <select id="cred-filter" value={credFilter} onChange={e => setCredFilter(e.target.value)}>
-                <option value="">Any credential status</option>
-                <option value="insurance">Insurance verified</option>
-                <option value="trade_license">Trade license verified</option>
-                <option value="business_license">Business license verified</option>
-                <option value="bond">Bond verified</option>
-              </select>
             </div>
             <div style={{ display: "grid", gap: 16 }} role="list" aria-label="Contractor listings">
               {filtered.map(c => (
