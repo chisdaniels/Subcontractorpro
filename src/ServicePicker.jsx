@@ -106,7 +106,7 @@ export function ServicePicker({ catalog, value, onChange, idPrefix, withPrimary 
                 >
                   <span>{g.name}</span>
                   <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {count > 0 && <span className="badge" style={{ background: "#f59e0b", color: "#0f172a" }}>{count}</span>}
+                    {count > 0 && <span className="badge" style={{ background: "#facc15", color: "#0f172a" }}>{count}</span>}
                     <span aria-hidden="true">{open ? "▴" : "▾"}</span>
                   </span>
                 </button>

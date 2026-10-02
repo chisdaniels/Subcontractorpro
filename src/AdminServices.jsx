@@ -315,7 +315,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
             <label htmlFor="svc-edit-lic" className="field-label">Trade license upload label <span style={{ color: "#64748b" }}>(blank = no trade license upload)</span></label>
             <input id="svc-edit-lic" placeholder="e.g. State Plumbing License" value={editForm.license_label} onChange={e => setEditForm(f => ({ ...f, license_label: e.target.value }))} />
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.9375rem", color: "#0f172a", cursor: "pointer", marginTop: 8 }}>
-              <input type="checkbox" checked={editForm.requires_bond} onChange={e => setEditForm(f => ({ ...f, requires_bond: e.target.checked }))} style={{ width: "auto", accentColor: "#f59e0b" }} />
+              <input type="checkbox" checked={editForm.requires_bond} onChange={e => setEditForm(f => ({ ...f, requires_bond: e.target.checked }))} style={{ width: "auto", accentColor: "#facc15" }} />
               Require a surety bond upload
             </label>
           </div>
