@@ -1552,11 +1552,11 @@ function avatarInitials(name) {
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-          background-color: #ffffff;
-          /* Faint slanted pinstripes in the brand gold and a soft sky blue. */
+          background-color: #f1f5f9;
+          /* Slanted pinstripes in the brand gold and a soft sky blue. */
           background-image: repeating-linear-gradient(-45deg,
-            rgba(245,158,11,0.10) 0 1.5px, transparent 1.5px 26px,
-            rgba(56,189,248,0.08) 26px 27.5px, transparent 27.5px 52px);
+            rgba(245,158,11,0.24) 0 2px, transparent 2px 26px,
+            rgba(56,189,248,0.20) 26px 28px, transparent 28px 52px);
           background-attachment: fixed;
         }
         ::-webkit-scrollbar { width: 4px; }
