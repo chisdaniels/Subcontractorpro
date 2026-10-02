@@ -177,6 +177,7 @@ export default function App() {
   const [authModal, setAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState("signin");
   const [authForm, setAuthForm] = useState({ email: "", password: "" });
+  const [authIntent, setAuthIntent] = useState(null); // "customer" | "pro" | null — tailors the sign-up note
   const [authError, setAuthError] = useState(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -633,7 +634,7 @@ export default function App() {
   function openChatWithContractor(contractor) {
     if (!user) {
       setAuthMode("signup");
-      setAuthForm(f => ({ ...f, role: "customer" }));
+      setAuthIntent("customer");
       setAuthError(null);
       setAuthModal(true);
       return;
@@ -1535,6 +1536,8 @@ function avatarInitials(name) {
         .svc-option input { width: auto; accent-color: #f59e0b; margin-top: 2px; flex-shrink: 0; }
         .svc-option:focus-within { outline: 2px solid #f59e0b; outline-offset: 1px; }
         .admin-svc-row { display: flex; padding: 10px 12px; background: #0f172a; border-radius: 8px; font-size: 13px; gap: 10px; }
+        .join-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px; }
+        .join-card { padding: 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border-color: #f59e0b; }
         .filter-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
         .filter-bar select { width: auto; min-width: 180px; max-width: 100%; }
         .svc-filter { position: relative; min-width: 220px; max-width: 100%; }
@@ -1680,13 +1683,13 @@ function avatarInitials(name) {
                 </button>
                 <button
                   className="btn btn-outline btn-sm"
-                  onClick={() => { setAuthMode("signin"); setAuthError(null); setAuthModal(true); }}
+                  onClick={() => { setAuthIntent(null); setAuthMode("signin"); setAuthError(null); setAuthModal(true); }}
                 >
                   Sign In
                 </button>
                 <button
                   className="btn btn-gold btn-sm"
-                  onClick={() => { setAuthMode("signup"); setAuthError(null); setAuthModal(true); }}
+                  onClick={() => { setAuthIntent(null); setAuthMode("signup"); setAuthError(null); setAuthModal(true); }}
                 >
                   Join Free
                 </button>
@@ -1829,20 +1832,37 @@ function avatarInitials(name) {
             <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Construction, cleaning, maintenance, and specialty service pros</p>
 
             {!user && (
-              <div className="card" style={{ padding: 18, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", borderColor: "#f59e0b" }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>⚒ Are you a subcontractor?</div>
-                  <div style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
-                    Set up your business profile, upload your license &amp; insurance, and start accepting local jobs. Free to join.
+              <div className="join-cards">
+                <div className="card join-card">
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>🏠 Need work done?</div>
+                    <div style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
+                      Post your job for free and get matched with verified local pros. Homeowners and businesses welcome.
+                    </div>
                   </div>
+                  <button
+                    className="btn btn-gold"
+                    onClick={() => { setTab("post"); setAuthIntent("customer"); setAuthMode("signup"); setAuthError(null); setAuthModal(true); }}
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    Post a Job →
+                  </button>
                 </div>
-                <button
-                  className="btn btn-gold"
-                  onClick={() => { setAuthMode("signup"); setAuthError(null); setAuthModal(true); }}
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  Get Hired →
-                </button>
+                <div className="card join-card">
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>⚒ Are you a subcontractor?</div>
+                    <div style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
+                      Set up your business profile, upload your license &amp; insurance, and start accepting local jobs. Free to join.
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-gold"
+                    onClick={() => { setAuthIntent("pro"); setAuthMode("signup"); setAuthError(null); setAuthModal(true); }}
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    Get Hired →
+                  </button>
+                </div>
               </div>
             )}
             <div className="filter-bar">
@@ -1930,7 +1950,7 @@ function avatarInitials(name) {
               </div>
               <button
                 className="btn btn-gold"
-                onClick={() => { setAuthMode("signup"); setAuthError(null); setAuthModal(true); }}
+                onClick={() => { setAuthIntent("customer"); setAuthMode("signup"); setAuthError(null); setAuthModal(true); }}
               >
                 Create Account
               </button>
@@ -3438,7 +3458,11 @@ function avatarInitials(name) {
             <form onSubmit={submitAuth} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {authMode === "signup" && (
                 <div style={{ fontSize: 13, color: "#94a3b8", background: "#0f172a", border: "1px solid #334155", borderRadius: 10, padding: "10px 12px", lineHeight: 1.5 }}>
-                  One account, both sides. Post jobs as a customer, and if you're a pro, add a contractor profile to accept work — anytime, from your profile menu.
+                  {authIntent === "customer"
+                    ? "Create your free account to post jobs and hire verified pros. If you're also a pro, you can add a contractor profile anytime from your profile menu."
+                    : authIntent === "pro"
+                      ? "Create your free account, then set up your contractor profile from your profile menu to start accepting jobs."
+                      : "One account, both sides. Post jobs as a customer, and if you're a pro, add a contractor profile to accept work — anytime, from your profile menu."}
                 </div>
               )}
               <div>
