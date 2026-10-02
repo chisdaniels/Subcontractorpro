@@ -1740,11 +1740,11 @@ function avatarInitials(name) {
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-          background-color: #f1f5f9;
+          background-color: #dfe5ec;
           /* Slanted pinstripes in the brand gold and a soft sky blue. */
           background-image: repeating-linear-gradient(-45deg,
-            rgba(245,158,11,0.24) 0 2px, transparent 2px 26px,
-            rgba(56,189,248,0.20) 26px 28px, transparent 28px 52px);
+            rgba(245,158,11,0.26) 0 2px, transparent 2px 26px,
+            rgba(56,189,248,0.22) 26px 28px, transparent 28px 52px);
           background-attachment: fixed;
         }
         ::-webkit-scrollbar { width: 4px; }
@@ -1761,7 +1761,7 @@ function avatarInitials(name) {
         .toolbar-btn:active { transform: scale(0.98); background: #f59e0b; border-color: #f59e0b; color: #0f172a; }
         .toolbar-btn.active { background: #f59e0b; border-color: #f59e0b; color: #0f172a; }
         .toolbar-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
-        .card { background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(15,23,42,0.06); transition: transform 0.18s, box-shadow 0.18s; }
+        .card { background: #ffffff; border-radius: 16px; border: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(15,23,42,0.06), 0 4px 14px rgba(15,23,42,0.07); transition: transform 0.18s, box-shadow 0.18s; }
         .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(15,23,42,0.12); }
         .badge { display: inline-block; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; border-radius: 99px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
         .avail { background: #ecfdf5; color: #047857; }
@@ -1807,7 +1807,7 @@ function avatarInitials(name) {
         .admin-svc-row { display: flex; padding: 10px 12px; background: #f8fafc; border-radius: 8px; font-size: 13px; gap: 10px; }
         .join-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px; }
         .join-card { padding: 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border-color: #f59e0b; }
-        .admin-section { border: 1px solid #e2e8f0; border-radius: 14px; background: #ffffff; box-shadow: 0 1px 3px rgba(15,23,42,0.06); margin-bottom: 12px; }
+        .admin-section { border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; box-shadow: 0 1px 2px rgba(15,23,42,0.06), 0 4px 14px rgba(15,23,42,0.07); margin-bottom: 12px; }
         .admin-section-h { margin: 0; font-size: 18px; font-weight: 700; }
         .admin-section-toggle { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; background: transparent; border: none; color: #0f172a; font: inherit; padding: 16px; cursor: pointer; text-align: left; border-radius: 14px; }
         .admin-section-toggle:hover .admin-section-caret { color: #b45309; }
@@ -2129,7 +2129,7 @@ function avatarInitials(name) {
         {tab === "search" && (
           <section aria-labelledby="search-heading">
             <h1 id="search-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 4 }}>FIND A CONTRACTOR</h1>
-            <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Construction, cleaning, maintenance, and specialty service pros</p>
+            <p style={{ color: "#334155", marginBottom: 20, fontSize: 14 }}>Construction, cleaning, maintenance, and specialty service pros</p>
 
             {!user && (
               <div className="join-cards">
@@ -2253,7 +2253,7 @@ function avatarInitials(name) {
         {tab === "post" && isCustomer && (
           <section aria-labelledby="post-heading" style={{ maxWidth: 720 }}>
             <h1 id="post-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 4 }}>POST A JOB</h1>
-            <p style={{ color: "#64748b", marginBottom: 24, fontSize: 14 }}>Describe your project and let contractors come to you</p>
+            <p style={{ color: "#334155", marginBottom: 24, fontSize: 14 }}>Describe your project and let contractors come to you</p>
             <form
               className="card"
               style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}
@@ -2488,7 +2488,7 @@ function avatarInitials(name) {
         {tab === "jobs" && user && (
           <section aria-labelledby="jobs-heading">
             <h1 id="jobs-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 4 }}>OPEN JOBS</h1>
-            <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Browse jobs posted by homeowners and businesses. Accept work that matches your services.</p>
+            <p style={{ color: "#334155", marginBottom: 20, fontSize: 14 }}>Browse jobs posted by homeowners and businesses. Accept work that matches your services.</p>
             <div className="filter-bar" style={{ alignItems: "center" }}>
               <label htmlFor="job-trade-filter" className="sr-only">Filter by service</label>
               <ServiceFilter id="job-trade-filter" catalog={catalog} value={serviceFilter} onChange={setServiceFilter} />
@@ -2572,7 +2572,7 @@ function avatarInitials(name) {
           return (
             <section aria-labelledby="myjobs-heading">
               <h1 id="myjobs-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 4 }}>MY JOBS</h1>
-              <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Everything you're working on and everything you've posted.</p>
+              <p style={{ color: "#334155", marginBottom: 20, fontSize: 14 }}>Everything you're working on and everything you've posted.</p>
 
               {workingOn.length === 0 && posted.length === 0 && (
                 <div className="card" style={{ padding: 24, textAlign: "center", color: "#475569" }}>
@@ -2794,7 +2794,7 @@ function avatarInitials(name) {
         {tab === "admin" && isAdmin && (
           <section aria-labelledby="admin-heading">
             <h1 id="admin-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 4 }}>ADMIN</h1>
-            <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Verify contractor documents and manage the admin team.</p>
+            <p style={{ color: "#334155", marginBottom: 20, fontSize: 14 }}>Verify contractor documents and manage the admin team.</p>
 
             <AdminSection id="pending" title="Pending Verification" summary={`${contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).length} waiting`} defaultOpen>
             {() => contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).length === 0 ? (
