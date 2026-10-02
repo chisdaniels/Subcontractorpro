@@ -1486,6 +1486,7 @@ function avatarInitials(name) {
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
         .user-menu { position: absolute; top: calc(100% + 8px); right: 0; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 6px; min-width: 240px; display: flex; flex-direction: column; gap: 2px; z-index: 50; box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
+        .user-menu-who { padding: 10px 14px 12px; margin-bottom: 4px; border-bottom: 1px solid #334155; max-width: 280px; }
         .user-menu-item { background: none; border: none; cursor: pointer; padding: 12px 14px; font-size: 14px; font-weight: 600; color: #cbd5e1; border-radius: 8px; text-align: left; font-family: inherit; transition: background 0.15s, color 0.15s; white-space: nowrap; }
         .user-menu-item:hover { background: #0f172a; color: #f1f5f9; }
         .user-menu-item:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; }
@@ -1597,12 +1598,16 @@ function avatarInitials(name) {
                   aria-label="Account menu"
                   style={{ display: "flex", alignItems: "center", gap: 8 }}
                 >
-                  ☰ <span style={{ maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</span>
+                  ☰ My Account
                 </button>
                 {userMenuOpen && (
                   <>
                     <div onClick={() => setUserMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} aria-hidden="true" />
                     <div role="menu" className="user-menu">
+                      <div role="presentation" className="user-menu-who">
+                        <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, letterSpacing: 0.5 }}>SIGNED IN AS</div>
+                        <div style={{ fontSize: 13, color: "#f1f5f9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</div>
+                      </div>
                       {isContractor && myContractor && (
                         <button
                           className="user-menu-item"
