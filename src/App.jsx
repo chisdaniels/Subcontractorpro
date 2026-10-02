@@ -4067,10 +4067,11 @@ function avatarInitials(name) {
               <li>Make sure you're in <strong>Safari</strong> (this doesn't work in Chrome or Firefox on iOS).</li>
               <li>Tap the <strong>Share</strong> icon at the bottom center — a square with an arrow pointing up.</li>
               <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
-              <li>Tap <strong>Add</strong> in the top right.</li>
+              <li>Make sure <strong>Open as Web App</strong> is switched on, then tap <strong>Add</strong>.</li>
+              <li>Open Subcontractor Pros from the new home screen icon and sign in.</li>
             </ol>
             <div style={{ color: "#475569", fontSize: 13, marginBottom: 14, background: "#f8fafc", borderRadius: 8, padding: 12 }}>
-              You'll get an app icon on your home screen that opens Subcontractor Pros full-screen, no browser bar.
+              The icon opens Subcontractor Pros full-screen, with no browser bar. Notifications only work in the home screen app, so turn them on from there: My Account → Turn on notifications.
             </div>
             <button type="button" className="btn btn-gold" style={{ width: "100%" }} onClick={() => setIosInstallModal(false)}>
               Got it

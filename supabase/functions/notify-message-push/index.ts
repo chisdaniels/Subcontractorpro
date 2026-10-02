@@ -28,7 +28,10 @@ Deno.serve(async (req) => {
     const vapidPublic  = Deno.env.get("VAPID_PUBLIC_KEY");
     const vapidPrivate = Deno.env.get("VAPID_PRIVATE_KEY");
     if (!vapidPublic || !vapidPrivate) return json({ error: "push keys not configured" }, 500);
-    const appUrl = (Deno.env.get("APP_URL") || "https://www.subcontractorpros.com").replace(/\/+$/, "");
+    // APP_URL may be set without a scheme ("subcontractorpros.com"); the VAPID
+    // contact must be a full https URL.
+    const rawUrl = (Deno.env.get("APP_URL") || "www.subcontractorpros.com").trim().replace(/\/+$/, "");
+    const appUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
     webpush.setVapidDetails(appUrl, vapidPublic, vapidPrivate);
 
     const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });

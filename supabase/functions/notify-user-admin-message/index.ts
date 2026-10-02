@@ -60,7 +60,9 @@ Deno.serve(async (req) => {
 
     const apiKey = Deno.env.get("RESEND_API_KEY");
     const from   = Deno.env.get("MAIL_FROM");
-    const appUrl = (Deno.env.get("APP_URL") || "").replace(/\/+$/, "");
+    // APP_URL may be set without a scheme; email links need a full URL.
+    const rawUrl = (Deno.env.get("APP_URL") || "").trim().replace(/\/+$/, "");
+    const appUrl = rawUrl && !/^https?:\/\//i.test(rawUrl) ? `https://${rawUrl}` : rawUrl;
     if (!apiKey || !from) return json({ error: "secrets missing" }, 500);
 
     const subject = "Subcontractor Pros — you have a new message from our team";
