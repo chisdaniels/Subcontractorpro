@@ -212,6 +212,9 @@ export default function App() {
   const [iosInstallModal, setIosInstallModal] = useState(false);
   const [jobReleases, setJobReleases] = useState([]);
   const [supportTickets, setSupportTickets] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminUserSearch, setAdminUserSearch] = useState("");
+  const [adminUserRole, setAdminUserRole] = useState("");
   const [myContractor, setMyContractor] = useState(null);
   const [profileModal, setProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -358,22 +361,25 @@ export default function App() {
   }, [user, authState]);
 
   useEffect(() => {
-    if (!isAdmin) { setAdminList([]); setAdminInvites([]); setJobReleases([]); setSupportTickets([]); return; }
+    if (!isAdmin) { setAdminList([]); setAdminInvites([]); setJobReleases([]); setSupportTickets([]); setAdminUsers([]); return; }
     (async () => {
-      const [aRes, iRes, rRes, tRes] = await Promise.all([
+      const [aRes, iRes, rRes, tRes, uRes] = await Promise.all([
         supabase.from("admins").select("*").order("created_at"),
         supabase.from("admin_invites").select("*").order("created_at"),
         supabase.from("job_releases").select("*").order("created_at", { ascending: false }),
         supabase.from("support_tickets").select("*").order("created_at", { ascending: false }),
+        supabase.rpc("admin_list_users"),
       ]);
       if (aRes.error) console.error("admins list failed:", aRes.error);
       if (iRes.error) console.error("admin invites list failed:", iRes.error);
       if (rRes.error) console.error("job releases load failed:", rRes.error);
       if (tRes.error) console.error("support tickets load failed:", tRes.error);
+      if (uRes.error) console.error("users list failed:", uRes.error);
       setAdminList(aRes.data || []);
       setAdminInvites(iRes.data || []);
       setJobReleases(rRes.data || []);
       setSupportTickets(tRes.data || []);
+      setAdminUsers(uRes.data || []);
     })();
   }, [isAdmin]);
 
@@ -2618,6 +2624,73 @@ function avatarInitials(name) {
                 ))}
               </div>
             )}
+
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
+              Users ({adminUsers.length} total · {adminUsers.filter(u => u.contractor_id).length} pros · {adminUsers.filter(u => !u.contractor_id).length} customers)
+            </h2>
+            {(() => {
+              const q = adminUserSearch.trim().toLowerCase();
+              const shown = adminUsers.filter(u =>
+                (!q || (u.name || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q)) &&
+                (adminUserRole === "" ||
+                  (adminUserRole === "pro" && u.contractor_id) ||
+                  (adminUserRole === "customer" && !u.contractor_id) ||
+                  (adminUserRole === "admin" && u.is_admin)));
+              return (
+                <div style={{ marginBottom: 32 }}>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                    <label htmlFor="admin-user-search" className="sr-only">Search users</label>
+                    <input
+                      id="admin-user-search"
+                      type="search"
+                      placeholder="Search by name or email"
+                      value={adminUserSearch}
+                      onChange={e => setAdminUserSearch(e.target.value)}
+                      style={{ flex: 1, minWidth: 200 }}
+                    />
+                    <label htmlFor="admin-user-role" className="sr-only">Filter by account type</label>
+                    <select id="admin-user-role" value={adminUserRole} onChange={e => setAdminUserRole(e.target.value)}>
+                      <option value="">All users</option>
+                      <option value="pro">Pros</option>
+                      <option value="customer">Customers</option>
+                      <option value="admin">Admins</option>
+                    </select>
+                  </div>
+                  {shown.length === 0 ? (
+                    <div style={{ color: "#475569", padding: 12 }}>{adminUsers.length === 0 ? "No users yet." : "No users match."}</div>
+                  ) : (
+                    <div style={{ display: "grid", gap: 6 }}>
+                      {shown.map(u => {
+                        const pro = u.contractor_id ? contractors.find(c => c.id === u.contractor_id) : null;
+                        return (
+                          <div key={u.id} style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, fontSize: 13 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                              <div style={{ fontWeight: 600, minWidth: 0 }}>
+                                {u.name || u.email}
+                                {u.contractor_id
+                                  ? <span className="badge" style={{ marginLeft: 6 }}>Pro</span>
+                                  : <span className="badge" style={{ marginLeft: 6 }}>Customer</span>}
+                                {pro?.deactivated_at
+                                  ? <span className="badge unavail" style={{ marginLeft: 4 }}>Deactivated</span>
+                                  : pro?.verified && <span className="badge avail" style={{ marginLeft: 4 }}>Verified</span>}
+                                {u.is_admin && <span className="badge" style={{ marginLeft: 4 }}>🛡 Admin</span>}
+                                {!u.confirmed && <span className="badge unavail" style={{ marginLeft: 4 }}>Email not confirmed</span>}
+                              </div>
+                              <div style={{ color: "#64748b", fontSize: 12 }}>Joined {new Date(u.created_at).toLocaleDateString()}</div>
+                            </div>
+                            <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 2 }}>
+                              {u.name && <>{u.email} · </>}
+                              {u.jobs_posted} job{u.jobs_posted === 1 ? "" : "s"} posted
+                              {" · "}last sign-in {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString() : "never"}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
               All Jobs ({jobs.filter(j => !j.deleted_at).length} live · {jobs.filter(j => j.deleted_at).length} removed)
