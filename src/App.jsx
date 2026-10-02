@@ -521,13 +521,26 @@ export default function App() {
       const { data, error } = await supabase
         .from("messages")
         .select("*")
-        .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
+        // Admin conversations (no contractor_id) are a shared team inbox;
+        // RLS only returns other people's to admins.
+        .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id},contractor_id.is.null`)
         .order("created_at");
       if (error) { console.error("messages load failed:", error); return; }
       const threads = {};
       for (const m of data || []) {
-        const counterpartyId = m.sender_id === user.id ? m.recipient_id : m.sender_id;
-        const key = `${m.contractor_id}:${counterpartyId}`;
+        let counterpartyId, key;
+        if (m.contractor_id == null && isAdmin) {
+          // Team side: one thread per user, whichever admin wrote.
+          counterpartyId = m.from_admin ? m.recipient_id : m.sender_id;
+          key = `admin:${counterpartyId}`;
+        } else if (m.contractor_id == null) {
+          // User side: one "team" thread; replies go to the admin who wrote last.
+          counterpartyId = m.from_admin ? m.sender_id : m.recipient_id;
+          key = "admin:team";
+        } else {
+          counterpartyId = m.sender_id === user.id ? m.recipient_id : m.sender_id;
+          key = `${m.contractor_id}:${counterpartyId}`;
+        }
         if (!threads[key]) {
           threads[key] = {
             key,
@@ -540,11 +553,12 @@ export default function App() {
         if (m.sender_id === counterpartyId && m.sender_email) {
           threads[key].counterparty_email = m.sender_email;
         }
+        if (key === "admin:team" && m.from_admin) threads[key].counterparty_id = m.sender_id;
         threads[key].messages.push(m);
       }
       setMessages(threads);
     })();
-  }, [user]);
+  }, [user, isAdmin]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -609,11 +623,13 @@ export default function App() {
     if (!thread) return;
     const text = msgInput.trim();
     setMsgInput("");
+    const fromAdmin = thread.contractor_id == null && isAdmin;
     const optimistic = {
       contractor_id: thread.contractor_id,
       sender_id: user.id,
       recipient_id: thread.counterparty_id,
-      sender_email: user.email,
+      sender_email: fromAdmin ? null : user.email,
+      from_admin: fromAdmin,
       text,
       created_at: new Date().toISOString(),
     };
@@ -625,10 +641,33 @@ export default function App() {
       contractor_id: thread.contractor_id,
       sender_id: user.id,
       recipient_id: thread.counterparty_id,
-      sender_email: user.email,
+      sender_email: fromAdmin ? null : user.email,
+      from_admin: fromAdmin,
       text,
     });
-    if (error) notify("Failed to send: " + error.message);
+    if (error) { notify("Failed to send: " + error.message); return; }
+    if (fromAdmin) {
+      // Email the user so they see it without opening the app. The message is
+      // already saved, so a mail hiccup only gets logged.
+      const { error: mailErr } = await supabase.functions
+        .invoke("notify-user-admin-message", { body: { recipientId: thread.counterparty_id } });
+      if (mailErr) console.error("admin message email failed:", mailErr);
+    }
+  }
+
+  // Admin → any user: opens (or starts) the admin conversation with them.
+  // `draft` pre-fills the message box, e.g. with the job it's about.
+  function openAdminChat(userId, draft = "") {
+    if (!isAdmin || !userId) return;
+    if (adminList.some(a => a.user_id === userId)) { notify("That's an admin — admin messages are for users."); return; }
+    const key = `admin:${userId}`;
+    setMessages(prev => prev[key] ? prev : {
+      ...prev,
+      [key]: { key, contractor_id: null, counterparty_id: userId, counterparty_email: null, messages: [] },
+    });
+    setActiveChat(key);
+    setMsgInput(draft);
+    setTab("messages");
   }
 
   function openChatWithContractor(contractor) {
@@ -1431,6 +1470,19 @@ function avatarInitials(name) {
   });
 
   function threadLabel(t) {
+    if (t.contractor_id == null) {
+      const other = adminUsers.find(u => u.id === t.counterparty_id);
+      if (isAdmin) {
+        // Admin viewing: counterparty is the user they're helping
+        const name = other?.name || other?.email || t.counterparty_email || "User";
+        return {
+          name,
+          sub: other ? `${other.contractor_id ? "Pro" : "Customer"} · admin conversation` : "Admin conversation",
+          avatar: name.slice(0, 2).toUpperCase(),
+        };
+      }
+      return { name: "Subcontractor Pros Team", sub: "Admin · replies go to our team", avatar: "SP" };
+    }
     const contractor = contractors.find(c => c.id === t.contractor_id);
     if (isContractor && myContractor && t.contractor_id === myContractor.id) {
       // Contractor viewing: counterparty is the customer
@@ -1449,10 +1501,19 @@ function avatarInitials(name) {
 
   const activeThread = activeChat ? messages[activeChat] : null;
 
+  // In a team thread every admin's messages are "ours"; elsewhere only my own.
+  function isOwnMessage(t, m) {
+    return t.contractor_id == null && isAdmin ? !!m.from_admin : m.sender_id === user?.id;
+  }
+  function adminName(id) {
+    if (id === user?.id) return "You";
+    return adminList.find(a => a.user_id === id)?.email || "Another admin";
+  }
+
   function unreadCount(t) {
     if (!user) return 0;
     const seenAt = lastSeenThreads[t.key] || 0;
-    return t.messages.filter(m => m.sender_id !== user.id && new Date(m.created_at).getTime() > seenAt).length;
+    return t.messages.filter(m => !isOwnMessage(t, m) && new Date(m.created_at).getTime() > seenAt).length;
   }
   const totalUnread = threadList.reduce((sum, t) => sum + unreadCount(t), 0);
 
@@ -2450,15 +2511,19 @@ function avatarInitials(name) {
                     <div style={{ color: "#475569", textAlign: "center", marginTop: 60 }}>No messages yet. Say hello!</div>
                   )}
                   {(activeThread?.messages || []).map((m, i) => {
-                    const mine = m.sender_id === user.id;
+                    const mine = isOwnMessage(activeThread, m);
+                    const showSender = isAdmin && activeThread.contractor_id == null && m.from_admin;
                     return (
-                      <div key={m.id || i} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
+                      <div key={m.id || i} style={{ display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
                         <div
                           className={mine ? "msg-me" : "msg-them"}
                           style={{ padding: "10px 14px", maxWidth: "72%", fontSize: 14 }}
                         >
                           {m.text}
                         </div>
+                        {showSender && (
+                          <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>Sent by {adminName(m.sender_id)}</div>
+                        )}
                       </div>
                     );
                   })}
@@ -2527,6 +2592,9 @@ function avatarInitials(name) {
                       <button className="btn btn-gold btn-sm" onClick={() => adminSetVerified(c, true)} disabled={adminBusy}>
                         Verify
                       </button>
+                      {c.user_id && !adminList.some(a => a.user_id === c.user_id) && (
+                        <button className="btn btn-outline btn-sm" onClick={() => openAdminChat(c.user_id)}>Message pro</button>
+                      )}
                       <button className="btn btn-outline btn-sm" onClick={() => openDenyModal(c)} style={{ borderColor: "#f87171", color: "#fca5a5" }}>
                         Deny
                       </button>
@@ -2567,6 +2635,9 @@ function avatarInitials(name) {
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <button className="btn btn-gold btn-sm" onClick={() => adminSetVerified(c, true)}>Approve anyway</button>
                           <button className="btn btn-outline btn-sm" onClick={() => openDenyModal(c)}>Edit denial reason</button>
+                          {c.user_id && !adminList.some(a => a.user_id === c.user_id) && (
+                            <button className="btn btn-outline btn-sm" onClick={() => openAdminChat(c.user_id)}>Message pro</button>
+                          )}
                         </div>
                       </div>
                     </details>
@@ -2649,6 +2720,9 @@ function avatarInitials(name) {
                         <button className="btn btn-outline btn-sm" onClick={() => adminSetVerified(c, false)} disabled={adminBusy}>
                           Un-verify
                         </button>
+                        {c.user_id && !adminList.some(a => a.user_id === c.user_id) && (
+                          <button className="btn btn-outline btn-sm" onClick={() => openAdminChat(c.user_id)}>Message pro</button>
+                        )}
                         {c.deactivated_at ? (
                           <button className="btn btn-gold btn-sm" onClick={() => setContractorDeactivated(c, false)}>
                             Put back on board
@@ -2718,10 +2792,15 @@ function avatarInitials(name) {
                               </div>
                               <div style={{ color: "#64748b", fontSize: 12 }}>Joined {new Date(u.created_at).toLocaleDateString()}</div>
                             </div>
-                            <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 2 }}>
+                            <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 2, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span>
                               {u.name && <>{u.email} · </>}
                               {u.jobs_posted} job{u.jobs_posted === 1 ? "" : "s"} posted
                               {" · "}last sign-in {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString() : "never"}
+                              </span>
+                              {!u.is_admin && (
+                                <button className="btn btn-outline btn-sm" onClick={() => openAdminChat(u.id)}>Message</button>
+                              )}
                             </div>
                           </div>
                         );
@@ -2775,6 +2854,12 @@ function avatarInitials(name) {
                       ) : null;
                     })()}
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                      {!j.deleted_at && !j.accepted_by && (
+                        <button className="btn btn-outline btn-sm" onClick={() => openJobEdit(j)}>Edit job</button>
+                      )}
+                      {j.posted_by && !adminList.some(a => a.user_id === j.posted_by) && (
+                        <button className="btn btn-outline btn-sm" onClick={() => openAdminChat(j.posted_by, `About your job "${j.title}" (${j.trade}): `)}>Message poster</button>
+                      )}
                       {j.deleted_at ? (
                         <button className="btn btn-gold btn-sm" onClick={() => adminRestoreJob(j)}>Restore</button>
                       ) : (
