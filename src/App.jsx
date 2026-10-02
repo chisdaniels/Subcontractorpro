@@ -1718,9 +1718,9 @@ function avatarInitials(name) {
         .svc-filter-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .svc-filter-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 100%; width: max-content; max-width: min(380px, calc(100vw - 32px)); max-height: min(60vh, 440px); overflow-y: auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px; box-shadow: 0 12px 32px rgba(15,23,42,0.16); outline: none; }
         .svc-filter-heading { color: #b45309; font-size: 17px; font-weight: 800; letter-spacing: 0.3px; padding: 14px 10px 6px; margin-top: 4px; border-top: 1px solid #e2e8f0; }
-        .svc-filter-opt { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px 8px 24px; border-radius: 6px; font-size: 14px; color: #334155; cursor: pointer; }
+        .svc-filter-opt { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px 8px 24px; border-radius: 6px; font-size: 14px; color: #0070f3; cursor: pointer; }
         .svc-filter-opt.top { padding-left: 10px; font-weight: 600; color: #0f172a; }
-        .svc-filter-opt.group { font-weight: 600; color: #0f172a; }
+        .svc-filter-opt.group { font-weight: 600; }
         .svc-filter-opt.active { background: #fef3c7; }
         .svc-filter-opt[aria-selected="true"] { color: #b45309; }
         .contractor-card:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; border-radius: 16px; }
