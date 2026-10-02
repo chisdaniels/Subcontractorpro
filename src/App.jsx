@@ -147,6 +147,18 @@ function Avatar({ initials, size = 48 }) {
   );
 }
 
+// Web push (notifications while the app is closed). The public half of the
+// VAPID key pair; the private half is a Supabase Edge Function secret.
+const VAPID_PUBLIC_KEY = "BMP8qaRnzIeHqgIXv6Xwv7MhDdGbiA6orGro0HnhpiATuFHpeP8cUT-Sj5mdXU4ELleaBNsMKOqqvBYDHKtfuBE";
+function pushSupported() {
+  return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+function vapidKeyBytes(base64url) {
+  const pad = "=".repeat((4 - (base64url.length % 4)) % 4);
+  const raw = atob((base64url + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+}
+
 // Two-note chime for incoming messages, synthesized so there's no sound file.
 // Browsers only allow audio after the visitor has tapped or clicked the page,
 // so the audio context is unlocked on the first interaction.
@@ -194,6 +206,9 @@ export default function App() {
     try { return localStorage.getItem("tlp_msg_sound") !== "off"; } catch { return true; }
   });
   const msgSoundRef = useRef(msgSound);
+  // "unsupported" | "default" | "denied" | "on"
+  const [pushState, setPushState] = useState(() =>
+    !pushSupported() ? "unsupported" : Notification.permission === "denied" ? "denied" : "default");
   msgSoundRef.current = msgSound;
   const [lastSeenThreads, setLastSeenThreads] = useState(() => {
     try {
@@ -351,6 +366,46 @@ export default function App() {
       return;
     }
     notify("Use your browser's menu to add this app to your device.");
+  }
+
+  // Saves this device's push subscription for the signed-in user.
+  async function savePushSubscription() {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKeyBytes(VAPID_PUBLIC_KEY) });
+    const { endpoint, keys } = sub.toJSON();
+    const { error } = await supabase.rpc("save_push_subscription", { p_endpoint: endpoint, p_p256dh: keys.p256dh, p_auth: keys.auth });
+    if (error) throw error;
+  }
+
+  async function enablePush() {
+    if (!pushSupported()) {
+      // iPhone Safari only offers push to the installed home-screen app.
+      if (isIOS()) setIosInstallModal(true);
+      else notify("This browser doesn't support notifications.");
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      setPushState(permission === "denied" ? "denied" : "default");
+      if (permission === "denied") notify("Notifications are blocked. Allow them in your browser or phone settings.");
+      return;
+    }
+    try {
+      await savePushSubscription();
+      setPushState("on");
+      notify("Notifications are on for this device.");
+    } catch (err) {
+      console.error("push subscribe failed:", err);
+      notify("Couldn't turn on notifications: " + (err.message || err));
+    }
+  }
+
+  // Tell the server to notify the other side of a just-sent message.
+  function pushMessage(messageId) {
+    if (!messageId) return;
+    supabase.functions.invoke("notify-message-push", { body: { messageId } })
+      .then(({ error }) => { if (error) console.error("message push failed:", error); });
   }
 
   async function loadCatalog() {
@@ -697,15 +752,16 @@ export default function App() {
       ...prev,
       [activeChat]: { ...prev[activeChat], messages: [...prev[activeChat].messages, optimistic] },
     }));
-    const { error } = await supabase.from("messages").insert({
+    const { data: saved, error } = await supabase.from("messages").insert({
       contractor_id: thread.contractor_id,
       sender_id: user.id,
       recipient_id: thread.counterparty_id,
       sender_email: fromAdmin ? null : user.email,
       from_admin: fromAdmin,
       text,
-    });
+    }).select("id").single();
     if (error) { notify("Failed to send: " + error.message); return; }
+    pushMessage(saved?.id);
     if (fromAdmin) {
       // Email the user so they see it without opening the app. The message is
       // already saved, so a mail hiccup only gets logged.
@@ -1255,6 +1311,17 @@ export default function App() {
   }
 
   async function signOut() {
+    // Stop this device's notifications for the account that's leaving.
+    if (pushState === "on") {
+      try {
+        const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+        if (sub) {
+          await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+          await sub.unsubscribe();
+        }
+      } catch (err) { console.error("push unsubscribe failed:", err); }
+      setPushState("default");
+    }
     await supabase.auth.signOut();
     notify("Signed out.");
   }
@@ -1495,14 +1562,15 @@ function avatarInitials(name) {
     if (acceptedJob.posted_by && acceptedJob.posted_by !== user.id && myContractor?.id) {
       const { data: contact } = await supabase.from("job_contacts").select("homeowner_name").eq("job_id", acceptedJob.id).maybeSingle();
       const introText = `Hi${contact?.homeowner_name ? " " + contact.homeowner_name : ""}, I just accepted your job "${acceptedJob.title}". Let me know when you'd like to get started — happy to answer any questions here.`;
-      const { error: msgErr } = await supabase.from("messages").insert({
+      const { data: intro, error: msgErr } = await supabase.from("messages").insert({
         contractor_id: myContractor.id,
         sender_id:     user.id,
         recipient_id:  acceptedJob.posted_by,
         sender_email:  user.email,
         text:          introText,
-      });
+      }).select("id").single();
       if (msgErr) console.error("intro message insert failed:", msgErr);
+      else pushMessage(intro?.id);
     }
 
     // Email the customer with the news + a link back to messages.
@@ -1594,6 +1662,34 @@ function avatarInitials(name) {
       window.removeEventListener("keydown", unlockChime);
     };
   }, []);
+
+  // App icon badge follows unread messages; opening the app clears the
+  // notifications already sitting in the tray.
+  useEffect(() => {
+    if (!user) return;
+    try {
+      if (totalUnread > 0) navigator.setAppBadge?.(totalUnread);
+      else navigator.clearAppBadge?.();
+    } catch {}
+  }, [totalUnread, user]);
+
+  useEffect(() => {
+    if (!user || !pushSupported()) return;
+    const clearTray = () => {
+      if (document.visibilityState !== "visible") return;
+      navigator.serviceWorker.ready
+        .then(reg => reg.getNotifications())
+        .then(list => list.forEach(n => n.close()))
+        .catch(() => {});
+    };
+    clearTray();
+    document.addEventListener("visibilitychange", clearTray);
+    // Permission granted earlier: make sure this device is saved for this account.
+    if (Notification.permission === "granted") {
+      savePushSubscription().then(() => setPushState("on")).catch(err => console.error("push resync failed:", err));
+    }
+    return () => document.removeEventListener("visibilitychange", clearTray);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const base = document.title.replace(/^\(\d+\) /, "");
@@ -1834,6 +1930,15 @@ function avatarInitials(name) {
                       >
                         {msgSound ? "🔔 Message sounds: On" : "🔕 Message sounds: Off"}
                       </button>
+                      {pushState !== "on" && (
+                        <button
+                          className="user-menu-item"
+                          role="menuitem"
+                          onClick={() => { enablePush(); setUserMenuOpen(false); }}
+                        >
+                          {pushState === "denied" ? "🔕 Notifications blocked in settings" : "📲 Turn on notifications"}
+                        </button>
+                      )}
                       <button
                         className="user-menu-item"
                         role="menuitem"
@@ -2543,6 +2648,17 @@ function avatarInitials(name) {
         {tab === "messages" && (
           <section aria-labelledby="messages-heading">
             <h1 id="messages-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 16 }}>MESSAGES</h1>
+            {(pushState === "default" || (pushState === "unsupported" && isIOS() && !isInstalled)) && (
+              <div className="card" style={{ padding: 14, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f59e0b" }}>
+                <div style={{ fontSize: 14, color: "#334155", flex: 1, minWidth: 220 }}>
+                  📲 <strong>Get notified about new messages</strong>, even when the app is closed.
+                  {pushState === "unsupported" && " On iPhone, add the app to your Home Screen first."}
+                </div>
+                <button className="btn btn-gold btn-sm" onClick={enablePush}>
+                  {pushState === "unsupported" ? "How to add it" : "Turn on notifications"}
+                </button>
+              </div>
+            )}
             {threadList.length === 0 ? (
               <div className="card" style={{ padding: 40, textAlign: "center" }}>
                 <div style={{ fontSize: 36, marginBottom: 12 }} aria-hidden="true">💬</div>
