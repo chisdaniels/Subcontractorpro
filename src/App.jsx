@@ -1760,8 +1760,9 @@ function avatarInitials(name) {
         .user-menu-item:hover { background: #f8fafc; }
         .user-menu-item:active { background: #f59e0b; color: #0f172a; }
         .user-menu-item:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; }
-        .toolbar-btn { flex: 1; background: #ffffff; border: 1px solid #e2e8f0; color: #b45309; border-radius: 12px; padding: 14px 16px; font-size: 1.0625rem; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s; }
-        .toolbar-btn:hover { border-color: #f59e0b; }
+        .toolbar-btn { flex: 1; background: #38bdf8; border: 1px solid #38bdf8; color: #0f172a; border-radius: 12px; padding: 14px 16px; font-size: 1.0625rem; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s; }
+        .toolbar-btn:hover { background: #7dd3fc; border-color: #7dd3fc; }
+        .toolbar-btn.active:hover { background: #f59e0b; border-color: #f59e0b; }
         .toolbar-btn:active { transform: scale(0.98); background: #f59e0b; border-color: #f59e0b; color: #0f172a; }
         .toolbar-btn.active { background: #f59e0b; border-color: #f59e0b; color: #0f172a; }
         .toolbar-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
@@ -1777,6 +1778,11 @@ function avatarInitials(name) {
         .btn-outline { background: #ffffff; border: 2px solid #cbd5e1; color: #b45309; transition: opacity 0.15s, transform 0.15s, background 0.15s, border-color 0.15s, color 0.15s; }
         .btn-outline:hover { border-color: #f59e0b; }
         .btn-outline:not(:disabled):active, .btn-outline[aria-expanded="true"] { background: #f59e0b; border-color: #f59e0b !important; color: #0f172a !important; opacity: 1; }
+        /* Header and tab buttons use the sky blue from the background pinstripes;
+           selected, pressed, or open ones turn gold. */
+        header .btn { background: #38bdf8; border: 2px solid #38bdf8; color: #0f172a; }
+        header .btn:hover { opacity: 1; background: #7dd3fc; border-color: #7dd3fc; }
+        header .btn.btn-sm:not(:disabled):active, header .btn.btn-sm[aria-expanded="true"] { background: #f59e0b; border-color: #f59e0b !important; color: #0f172a !important; }
         .btn-sm { padding: 7px 14px; min-height: 40px; font-size: 0.9375rem; border-radius: 8px; }
         input, textarea, select { background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; color: #0f172a; padding: 10px 14px; font-family: inherit; font-weight: 500; font-size: max(16px, 1.0625rem); width: 100%; outline: none; }
         input::placeholder, textarea::placeholder { color: #475569; opacity: 1; }
