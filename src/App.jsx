@@ -147,6 +147,34 @@ function Avatar({ initials, size = 48 }) {
   );
 }
 
+// Two-note chime for incoming messages, synthesized so there's no sound file.
+// Browsers only allow audio after the visitor has tapped or clicked the page,
+// so the audio context is unlocked on the first interaction.
+let chimeCtx = null;
+function unlockChime() {
+  try {
+    chimeCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (chimeCtx.state === "suspended") chimeCtx.resume();
+  } catch {}
+}
+function playChime() {
+  if (!chimeCtx || chimeCtx.state !== "running") return;
+  const now = chimeCtx.currentTime;
+  [[880, 0], [1318.5, 0.12]].forEach(([freq, at]) => {
+    const osc = chimeCtx.createOscillator();
+    const gain = chimeCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, now + at);
+    gain.gain.exponentialRampToValueAtTime(0.25, now + at + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + at + 0.45);
+    osc.connect(gain).connect(chimeCtx.destination);
+    osc.start(now + at);
+    osc.stop(now + at + 0.5);
+  });
+  try { navigator.vibrate?.(80); } catch {}
+}
+
 export default function App() {
   const [tab, setTab] = useState(() => {
     if (typeof window === "undefined") return "search";
@@ -162,6 +190,11 @@ export default function App() {
   const [reviews, setReviews] = useState({});
   const [msgInput, setMsgInput] = useState("");
   const [activeChat, setActiveChat] = useState(null);
+  const [msgSound, setMsgSound] = useState(() => {
+    try { return localStorage.getItem("tlp_msg_sound") !== "off"; } catch { return true; }
+  });
+  const msgSoundRef = useRef(msgSound);
+  msgSoundRef.current = msgSound;
   const [lastSeenThreads, setLastSeenThreads] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("tlp_thread_seen") || "{}");
@@ -569,7 +602,14 @@ export default function App() {
     const channel = supabase
       .channel(`messages-${user.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" },
-        payload => setMessages(prev => withMessage(prev, payload.new)))
+        payload => {
+          const m = payload.new;
+          setMessages(prev => withMessage(prev, m));
+          // Chime for messages from someone else (for admins, another admin's
+          // team message isn't "incoming").
+          const incoming = m.sender_id !== user.id && !(isAdmin && m.contractor_id == null && m.from_admin);
+          if (incoming && msgSoundRef.current) playChime();
+        })
       .subscribe();
     // Catch up after the phone sleeps or the tab sits in the background.
     const onVisible = () => { if (document.visibilityState === "visible") loadMessages(); };
@@ -1546,6 +1586,27 @@ function avatarInitials(name) {
   }
   const totalUnread = threadList.reduce((sum, t) => sum + unreadCount(t), 0);
 
+  useEffect(() => {
+    window.addEventListener("pointerdown", unlockChime);
+    window.addEventListener("keydown", unlockChime);
+    return () => {
+      window.removeEventListener("pointerdown", unlockChime);
+      window.removeEventListener("keydown", unlockChime);
+    };
+  }, []);
+
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\) /, "");
+    document.title = totalUnread > 0 ? `(${totalUnread}) ${base}` : base;
+  }, [totalUnread]);
+
+  function toggleMsgSound() {
+    const next = !msgSound;
+    setMsgSound(next);
+    try { localStorage.setItem("tlp_msg_sound", next ? "on" : "off"); } catch {}
+    if (next) { unlockChime(); playChime(); }
+  }
+
   function markThreadSeen(threadKey) {
     setLastSeenThreads(prev => {
       const next = { ...prev, [threadKey]: Date.now() };
@@ -1764,6 +1825,14 @@ function avatarInitials(name) {
                         onClick={() => { setSupportModal(true); setUserMenuOpen(false); }}
                       >
                         Support
+                      </button>
+                      <button
+                        className="user-menu-item"
+                        role="menuitemcheckbox"
+                        aria-checked={msgSound}
+                        onClick={toggleMsgSound}
+                      >
+                        {msgSound ? "🔔 Message sounds: On" : "🔕 Message sounds: Off"}
                       </button>
                       <button
                         className="user-menu-item"
