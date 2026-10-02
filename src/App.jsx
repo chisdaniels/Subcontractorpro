@@ -1930,15 +1930,15 @@ function avatarInitials(name) {
                       >
                         {msgSound ? "🔔 Message sounds: On" : "🔕 Message sounds: Off"}
                       </button>
-                      {pushState !== "on" && (
-                        <button
-                          className="user-menu-item"
-                          role="menuitem"
-                          onClick={() => { enablePush(); setUserMenuOpen(false); }}
-                        >
-                          {pushState === "denied" ? "🔕 Notifications blocked in settings" : "📲 Turn on notifications"}
-                        </button>
-                      )}
+                      <button
+                        className="user-menu-item"
+                        role="menuitem"
+                        onClick={() => { enablePush(); setUserMenuOpen(false); }}
+                      >
+                        {pushState === "on"
+                          ? "📲 Notifications: On"
+                          : pushState === "denied" ? "🔕 Notifications blocked in settings" : "📲 Turn on notifications"}
+                      </button>
                       <button
                         className="user-menu-item"
                         role="menuitem"
