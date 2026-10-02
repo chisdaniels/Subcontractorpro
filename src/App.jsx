@@ -40,7 +40,6 @@ const TAB_PATHS = {
   reviews:  "/reviews",
   admin:    "/admin",
 };
-const ACTIVE_USER_DAYS = 30; // Admin "active user" = signed in this recently
 const PATH_TABS = Object.fromEntries(Object.entries(TAB_PATHS).map(([t, p]) => [p, t]));
 
 function pathToTab(pathname, hash) {
@@ -1384,7 +1383,9 @@ function avatarInitials(name) {
   // themselves, admins, and a hiring customer.
   // Admin dashboard "active" definitions.
   function isActiveUser(u) {
-    return !!u.last_sign_in_at && Date.now() - new Date(u.last_sign_in_at).getTime() < ACTIVE_USER_DAYS * 86400000;
+    // Only pro profiles can be deactivated; customers are always active.
+    const pro = u.contractor_id ? contractors.find(c => c.id === u.contractor_id) : null;
+    return !pro?.deactivated_at;
   }
   function isActiveJob(j) {
     return !j.deleted_at && j.status !== "completed";
@@ -2777,7 +2778,7 @@ function avatarInitials(name) {
               title="Users"
               summary={`${adminUsers.length} total · ${adminUsers.filter(u => u.contractor_id).length} pros · ${adminUsers.filter(u => !u.contractor_id).length} customers`}
               counts={{ active: adminUsers.filter(isActiveUser).length, inactive: adminUsers.filter(u => !isActiveUser(u)).length }}
-              hint={`Active = signed in within the last ${ACTIVE_USER_DAYS} days.`}
+              hint="Inactive = pros whose profile is deactivated (taken off the board)."
             >
             {filter => {
               const q = adminUserSearch.trim().toLowerCase();
