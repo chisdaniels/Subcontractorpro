@@ -516,50 +516,69 @@ export default function App() {
     loadJobs();
   }, [authState, user?.id]);
 
+  // Files one message into its conversation (copy-on-write). Shared by the
+  // initial load and live updates, so both group threads the same way.
+  function withMessage(threads, m) {
+    let counterpartyId, key;
+    if (m.contractor_id == null && isAdmin) {
+      // Team side: one thread per user, whichever admin wrote.
+      counterpartyId = m.from_admin ? m.recipient_id : m.sender_id;
+      key = `admin:${counterpartyId}`;
+    } else if (m.contractor_id == null) {
+      // User side: one "team" thread; replies go to the admin who wrote last.
+      counterpartyId = m.from_admin ? m.sender_id : m.recipient_id;
+      key = "admin:team";
+    } else {
+      counterpartyId = m.sender_id === user.id ? m.recipient_id : m.sender_id;
+      key = `${m.contractor_id}:${counterpartyId}`;
+    }
+    const t = threads[key]
+      ? { ...threads[key], messages: [...threads[key].messages] }
+      : { key, contractor_id: m.contractor_id, counterparty_id: counterpartyId, counterparty_email: null, messages: [] };
+    if (m.id != null && t.messages.some(x => x.id === m.id)) return threads;
+    // My own message arriving live replaces its optimistic copy.
+    const pending = m.sender_id === user.id ? t.messages.findIndex(x => x.id == null && x.text === m.text) : -1;
+    if (pending >= 0) t.messages[pending] = m; else t.messages.push(m);
+    if (m.sender_id === counterpartyId && m.sender_email) t.counterparty_email = m.sender_email;
+    if (key === "admin:team" && m.from_admin) t.counterparty_id = m.sender_id;
+    return { ...threads, [key]: t };
+  }
+
+  async function loadMessages() {
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      // Admin conversations (no contractor_id) are a shared team inbox;
+      // RLS only returns other people's to admins.
+      .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id},contractor_id.is.null`)
+      .order("created_at");
+    if (error) { console.error("messages load failed:", error); return; }
+    // Keep conversations started on this page that have no messages yet.
+    setMessages(prev => {
+      let threads = Object.fromEntries(Object.entries(prev).filter(([, t]) => t.messages.length === 0));
+      for (const m of data || []) threads = withMessage(threads, m);
+      return threads;
+    });
+  }
+
   useEffect(() => {
     if (!user) { setMessages({}); return; }
-    (async () => {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        // Admin conversations (no contractor_id) are a shared team inbox;
-        // RLS only returns other people's to admins.
-        .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id},contractor_id.is.null`)
-        .order("created_at");
-      if (error) { console.error("messages load failed:", error); return; }
-      const threads = {};
-      for (const m of data || []) {
-        let counterpartyId, key;
-        if (m.contractor_id == null && isAdmin) {
-          // Team side: one thread per user, whichever admin wrote.
-          counterpartyId = m.from_admin ? m.recipient_id : m.sender_id;
-          key = `admin:${counterpartyId}`;
-        } else if (m.contractor_id == null) {
-          // User side: one "team" thread; replies go to the admin who wrote last.
-          counterpartyId = m.from_admin ? m.sender_id : m.recipient_id;
-          key = "admin:team";
-        } else {
-          counterpartyId = m.sender_id === user.id ? m.recipient_id : m.sender_id;
-          key = `${m.contractor_id}:${counterpartyId}`;
-        }
-        if (!threads[key]) {
-          threads[key] = {
-            key,
-            contractor_id: m.contractor_id,
-            counterparty_id: counterpartyId,
-            counterparty_email: null,
-            messages: [],
-          };
-        }
-        if (m.sender_id === counterpartyId && m.sender_email) {
-          threads[key].counterparty_email = m.sender_email;
-        }
-        if (key === "admin:team" && m.from_admin) threads[key].counterparty_id = m.sender_id;
-        threads[key].messages.push(m);
-      }
-      setMessages(threads);
-    })();
-  }, [user, isAdmin]);
+    setMessages({});
+    loadMessages();
+    // New messages arrive live; RLS limits them to what this user may read.
+    const channel = supabase
+      .channel(`messages-${user.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" },
+        payload => setMessages(prev => withMessage(prev, payload.new)))
+      .subscribe();
+    // Catch up after the phone sleeps or the tab sits in the background.
+    const onVisible = () => { if (document.visibilityState === "visible") loadMessages(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      supabase.removeChannel(channel);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [user, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
