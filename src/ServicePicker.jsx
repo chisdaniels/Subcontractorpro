@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { searchCatalog } from "./services";
 
 // Grouped, searchable multi-select with selected-service chips.
@@ -124,9 +124,8 @@ export function ServicePicker({ catalog, value, onChange, idPrefix, withPrimary 
   );
 }
 
-// Grouped <select>. `allLabel` adds an "all" option (value ""); `groupOptions`
-// adds "All in <group>" options (value "group:<slug>") for filtering.
-export function ServiceSelect({ catalog, value, onChange, id, allLabel, groupOptions = false, style }) {
+// Grouped <select> for picking one service. `allLabel` adds an "all" option (value "").
+export function ServiceSelect({ catalog, value, onChange, id, allLabel, style }) {
   const groups = catalog.groups
     .filter(g => g.is_active)
     .map(g => ({ ...g, services: g.services.filter(s => s.is_active) }))
@@ -138,11 +137,152 @@ export function ServiceSelect({ catalog, value, onChange, id, allLabel, groupOpt
       {!known && <option value={value}>{value}</option>}
       {groups.map(g => (
         <optgroup key={g.slug} label={g.name}>
-          {groupOptions && <option value={`group:${g.slug}`}>All {g.name}</option>}
           {g.services.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
         </optgroup>
       ))}
     </select>
+  );
+}
+
+// Service filter dropdown for the Find a Pro and Open Jobs filter bars. A
+// custom listbox rather than a <select>, because browsers (macOS, iOS) ignore
+// styling on <optgroup> labels and the category headings need to stand out.
+// Values: "" (all), "group:<slug>" (a whole category), or a service name.
+export function ServiceFilter({ catalog, value, onChange, id, allLabel = "All services" }) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const rootRef = useRef(null);
+  const btnRef = useRef(null);
+  const listRef = useRef(null);
+  const typed = useRef({ text: "", at: 0 });
+
+  const { sections, items } = useMemo(() => {
+    const items = [];
+    const add = (val, label, kind) => { const it = { value: val, label, kind, idx: items.length }; items.push(it); return it; };
+    const sections = [{ key: "_all", heading: null, items: [add("", allLabel, "top")] }];
+    for (const g of catalog.groups) {
+      if (!g.is_active) continue;
+      const services = g.services.filter(s => s.is_active);
+      if (!services.length) continue;
+      sections.push({
+        key: g.slug,
+        heading: g.name,
+        items: [add(`group:${g.slug}`, `All ${g.name}`, "group"), ...services.map(s => add(s.name, s.name, "service"))],
+      });
+    }
+    return { sections, items };
+  }, [catalog, allLabel]);
+
+  const selectedIdx = items.findIndex(i => i.value === value);
+  const currentLabel = selectedIdx >= 0 ? items[selectedIdx].label : value;
+  const optId = idx => `${id}-opt-${idx}`;
+
+  useEffect(() => {
+    if (!open) return;
+    setActive(selectedIdx >= 0 ? selectedIdx : 0);
+    listRef.current?.focus();
+    const onDown = e => { if (!rootRef.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (open) document.getElementById(optId(active))?.scrollIntoView({ block: "nearest" });
+  }, [open, active]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function choose(idx) {
+    onChange(items[idx].value);
+    setOpen(false);
+    btnRef.current?.focus();
+  }
+
+  function onButtonKey(e) {
+    if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) {
+      e.preventDefault();
+      setOpen(true);
+    }
+  }
+
+  function onListKey(e) {
+    const last = items.length - 1;
+    switch (e.key) {
+      case "ArrowDown": e.preventDefault(); setActive(a => Math.min(a + 1, last)); break;
+      case "ArrowUp": e.preventDefault(); setActive(a => Math.max(a - 1, 0)); break;
+      case "Home": e.preventDefault(); setActive(0); break;
+      case "End": e.preventDefault(); setActive(last); break;
+      case "PageDown": e.preventDefault(); setActive(a => Math.min(a + 8, last)); break;
+      case "PageUp": e.preventDefault(); setActive(a => Math.max(a - 8, 0)); break;
+      case "Enter": case " ": e.preventDefault(); choose(active); break;
+      case "Escape": e.preventDefault(); setOpen(false); btnRef.current?.focus(); break;
+      case "Tab": setOpen(false); break;
+      default:
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          const now = Date.now();
+          const t = typed.current;
+          t.text = now - t.at > 700 ? e.key.toLowerCase() : t.text + e.key.toLowerCase();
+          t.at = now;
+          const start = t.text.length === 1 ? active + 1 : active;
+          const order = [...items.slice(start), ...items.slice(0, start)];
+          const hit = order.find(i => i.label.toLowerCase().startsWith(t.text));
+          if (hit) setActive(hit.idx);
+        }
+    }
+  }
+
+  return (
+    <div className="svc-filter" ref={rootRef}>
+      <button
+        id={id}
+        ref={btnRef}
+        type="button"
+        className="svc-filter-btn"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={`${id}-list`}
+        aria-label={`Filter by service: ${currentLabel}`}
+        onClick={() => setOpen(o => !o)}
+        onKeyDown={onButtonKey}
+      >
+        <span className="svc-filter-value">{currentLabel}</span>
+        <span aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div
+          id={`${id}-list`}
+          ref={listRef}
+          role="listbox"
+          tabIndex={-1}
+          aria-label="Services"
+          aria-activedescendant={optId(active)}
+          className="svc-filter-menu"
+          onKeyDown={onListKey}
+        >
+          {sections.map(sec => {
+            const options = sec.items.map(it => (
+              <div
+                key={it.idx}
+                id={optId(it.idx)}
+                role="option"
+                aria-selected={it.value === value}
+                className={`svc-filter-opt ${it.kind}${it.idx === active ? " active" : ""}`}
+                onPointerMove={() => { if (it.idx !== active) setActive(it.idx); }}
+                onClick={() => choose(it.idx)}
+              >
+                <span>{it.label}</span>
+                {it.value === value && <span aria-hidden="true">✓</span>}
+              </div>
+            ));
+            if (!sec.heading) return <div key={sec.key}>{options}</div>;
+            return (
+              <div key={sec.key} role="group" aria-labelledby={`${id}-grp-${sec.key}`}>
+                <div id={`${id}-grp-${sec.key}`} role="presentation" className="svc-filter-heading">{sec.heading}</div>
+                {options}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

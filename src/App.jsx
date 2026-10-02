@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "./lib/supabase";
-import { ServicePicker, ServiceSelect, serviceFilterMatches } from "./ServicePicker";
+import { ServiceFilter, ServicePicker, ServiceSelect, serviceFilterMatches } from "./ServicePicker";
 import AdminServices from "./AdminServices";
 import { CredentialList, CredentialReviewPanel, DocLink, VerifiedCredentialBadges, VerifiedCredentialsSummary, VERIFIED_PRO_MEANING } from "./credentials";
 import {
@@ -1537,6 +1537,17 @@ function avatarInitials(name) {
         .admin-svc-row { display: flex; padding: 10px 12px; background: #0f172a; border-radius: 8px; font-size: 13px; gap: 10px; }
         .filter-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
         .filter-bar select { width: auto; min-width: 180px; max-width: 100%; }
+        .svc-filter { position: relative; min-width: 220px; max-width: 100%; }
+        .svc-filter-btn { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; background: #0f172a; border: 1.5px solid #334155; border-radius: 10px; color: #f1f5f9; padding: 10px 14px; font-family: inherit; font-size: 16px; cursor: pointer; text-align: left; }
+        .svc-filter-btn:focus-visible, .svc-filter-btn[aria-expanded="true"] { outline: none; border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+        .svc-filter-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .svc-filter-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 100%; width: max-content; max-width: min(380px, calc(100vw - 32px)); max-height: min(60vh, 440px); overflow-y: auto; background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 6px; box-shadow: 0 12px 32px rgba(0,0,0,0.5); outline: none; }
+        .svc-filter-heading { color: #f59e0b; font-size: 17px; font-weight: 800; letter-spacing: 0.3px; padding: 14px 10px 6px; margin-top: 4px; border-top: 1px solid #1e293b; }
+        .svc-filter-opt { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px 8px 24px; border-radius: 6px; font-size: 14px; color: #cbd5e1; cursor: pointer; }
+        .svc-filter-opt.top { padding-left: 10px; font-weight: 600; color: #f1f5f9; }
+        .svc-filter-opt.group { font-weight: 600; color: #f1f5f9; }
+        .svc-filter-opt.active { background: #1e293b; }
+        .svc-filter-opt[aria-selected="true"] { color: #f59e0b; }
         .contractor-card:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; border-radius: 16px; }
         .star-btn { background: none; border: none; cursor: pointer; padding: 2px; font-size: 24px; line-height: 1; transition: transform 0.1s; }
         .star-btn:hover { transform: scale(1.15); }
@@ -1552,6 +1563,8 @@ function avatarInitials(name) {
           .job-grid { grid-template-columns: 1fr !important; }
           .svc-group-body { grid-template-columns: 1fr; }
           .filter-bar select { flex: 1 1 100%; }
+          .filter-bar .svc-filter { flex: 1 1 100%; }
+          .svc-filter-menu { width: 100%; max-width: 100%; }
           .modal { padding: 20px !important; border-radius: 16px !important; }
           .modal-bg { padding: 12px !important; }
           .modal input[type="date"] { max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; -webkit-appearance: none !important; appearance: none !important; }
@@ -1843,7 +1856,7 @@ function avatarInitials(name) {
                 style={{ flex: 1, minWidth: 200 }}
               />
               <label htmlFor="trade-filter" className="sr-only">Filter by service</label>
-              <ServiceSelect id="trade-filter" catalog={catalog} value={serviceFilter} onChange={setServiceFilter} allLabel="All services" groupOptions />
+              <ServiceFilter id="trade-filter" catalog={catalog} value={serviceFilter} onChange={setServiceFilter} />
               <label htmlFor="cred-filter" className="sr-only">Filter by verified credential</label>
               <select id="cred-filter" value={credFilter} onChange={e => setCredFilter(e.target.value)}>
                 <option value="">Any credential status</option>
@@ -2166,7 +2179,7 @@ function avatarInitials(name) {
             <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Browse jobs posted by homeowners and businesses. Accept work that matches your services.</p>
             <div className="filter-bar" style={{ alignItems: "center" }}>
               <label htmlFor="job-trade-filter" className="sr-only">Filter by service</label>
-              <ServiceSelect id="job-trade-filter" catalog={catalog} value={serviceFilter} onChange={setServiceFilter} allLabel="All services" groupOptions />
+              <ServiceFilter id="job-trade-filter" catalog={catalog} value={serviceFilter} onChange={setServiceFilter} />
               {myContractor && (
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#cbd5e1", cursor: "pointer" }}>
                   <input type="checkbox" checked={onlyMyServices} onChange={e => setOnlyMyServices(e.target.checked)} style={{ width: "auto", accentColor: "#f59e0b" }} />
