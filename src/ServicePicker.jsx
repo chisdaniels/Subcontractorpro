@@ -36,7 +36,7 @@ export function ServicePicker({ catalog, value, onChange, idPrefix, withPrimary 
       <label key={s.name} className={`svc-option${checked ? " checked" : ""}`}>
         <input type="checkbox" checked={checked} onChange={() => toggle(s.name)} />
         <span style={{ minWidth: 0 }}>
-          <span style={{ display: "block", color: "#f1f5f9" }}>{s.name}</span>
+          <span style={{ display: "block", color: "#0f172a" }}>{s.name}</span>
           {(showGroup || hint || s.description) && (
             <span style={{ display: "block", fontSize: 11, color: "#64748b", lineHeight: 1.4 }}>
               {[showGroup && s.group?.name, hint, s.description].filter(Boolean).join(" · ")}
@@ -49,7 +49,7 @@ export function ServicePicker({ catalog, value, onChange, idPrefix, withPrimary 
 
   return (
     <div className="svc-picker">
-      {label && <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>{label}</div>}
+      {label && <div style={{ fontSize: 13, color: "#475569", marginBottom: 6 }}>{label}</div>}
       {value.length > 0 && (
         <ul className="svc-chips" aria-label="Selected services">
           {value.map((name, i) => {
@@ -59,7 +59,7 @@ export function ServicePicker({ catalog, value, onChange, idPrefix, withPrimary 
             return (
               <li key={name} className={`svc-chip${isPrimary ? " primary" : ""}`}>
                 {isPrimary && <span className="svc-chip-tag">★ Primary</span>}
-                <span>{name}{retired && <span style={{ color: "#fca5a5" }}> (no longer offered)</span>}</span>
+                <span>{name}{retired && <span style={{ color: "#b91c1c" }}> (no longer offered)</span>}</span>
                 {withPrimary && !isPrimary && (
                   <button type="button" className="svc-chip-btn" onClick={() => makePrimary(name)} aria-label={`Make ${name} your primary service`}>
                     Make primary

@@ -6,11 +6,11 @@ export const VERIFIED_PRO_MEANING =
   "Verified pro: a SubcontractorPros admin reviewed this business's documents and approved the profile to accept jobs.";
 
 const STATUS_STYLE = {
-  verified:     { background: "#064e3b", color: "#34d399" },
-  pending:      { background: "#422006", color: "#fbbf24" },
-  expired:      { background: "#3b1515", color: "#f87171" },
-  rejected:     { background: "#3b1515", color: "#f87171" },
-  not_provided: { background: "#334155", color: "#94a3b8" },
+  verified:     { background: "#ecfdf5", color: "#047857" },
+  pending:      { background: "#fffbeb", color: "#b45309" },
+  expired:      { background: "#fef2f2", color: "#dc2626" },
+  rejected:     { background: "#fef2f2", color: "#dc2626" },
+  not_provided: { background: "#e2e8f0", color: "#475569" },
 };
 
 export function CredentialStatusBadge({ status }) {
@@ -40,8 +40,8 @@ export function DocLink({ path, children = "View document" }) {
   }
   return (
     <>
-      <a href="#" onClick={open} style={{ color: "#34d399", textDecoration: "underline", fontSize: 12 }}>{children}</a>
-      {failed && <span style={{ color: "#f87171", fontSize: 12 }}> — couldn't open this document</span>}
+      <a href="#" onClick={open} style={{ color: "#047857", textDecoration: "underline", fontSize: 12 }}>{children}</a>
+      {failed && <span style={{ color: "#dc2626", fontSize: 12 }}> — couldn't open this document</span>}
     </>
   );
 }
@@ -66,10 +66,10 @@ export function CredentialList({ contractor, reqMap, showDocs = false, showNotes
       {items.map(item => (
         <li key={item.key} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontWeight: 600, color: "#f1f5f9", fontSize: 13 }}>{item.label}</div>
-            {detailLine(item) && <div style={{ fontSize: 12, color: "#94a3b8" }}>{detailLine(item)}</div>}
+            <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13 }}>{item.label}</div>
+            {detailLine(item) && <div style={{ fontSize: 12, color: "#475569" }}>{detailLine(item)}</div>}
             {showNotes && item.review?.note && item.review.doc_path === item.docPath && (
-              <div style={{ fontSize: 12, color: "#fbbf24" }}>Reviewer note: {item.review.note}</div>
+              <div style={{ fontSize: 12, color: "#b45309" }}>Reviewer note: {item.review.note}</div>
             )}
             {showDocs && item.docPath && <DocLink path={item.docPath} />}
           </div>
@@ -94,14 +94,14 @@ export function VerifiedCredentialBadges({ contractor }) {
 export function VerifiedCredentialsSummary({ contractor }) {
   const labels = verifiedCredentialLabels(contractor);
   if (!labels.length) {
-    return <div style={{ fontSize: 13, color: "#94a3b8" }}>No credentials verified yet.</div>;
+    return <div style={{ fontSize: 13, color: "#475569" }}>No credentials verified yet.</div>;
   }
   return (
     <>
       <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
         {labels.map(l => (
-          <li key={l} style={{ fontSize: 14, color: "#f1f5f9" }}>
-            <span style={{ color: "#34d399", fontWeight: 700 }}>✓</span> {l} verified
+          <li key={l} style={{ fontSize: 14, color: "#0f172a" }}>
+            <span style={{ color: "#047857", fontWeight: 700 }}>✓</span> {l} verified
           </li>
         ))}
       </ul>
@@ -153,20 +153,20 @@ function CredentialReviewRow({ item, onSave }) {
   }
 
   return (
-    <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, fontSize: 13 }}>
+    <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, fontSize: 13 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 700, color: "#f1f5f9" }}>{item.label}</div>
-          {detailLine(item) && <div style={{ fontSize: 12, color: "#94a3b8" }}>{detailLine(item)}</div>}
+          <div style={{ fontWeight: 700, color: "#0f172a" }}>{item.label}</div>
+          {detailLine(item) && <div style={{ fontSize: 12, color: "#475569" }}>{detailLine(item)}</div>}
           {item.docPath
             ? <DocLink path={item.docPath} />
             : <span style={{ fontSize: 12, color: "#64748b" }}>No document uploaded</span>}
-          {item.review?.note && <div style={{ fontSize: 12, color: "#fbbf24", marginTop: 4 }}>Note: {item.review.note}</div>}
+          {item.review?.note && <div style={{ fontSize: 12, color: "#b45309", marginTop: 4 }}>Note: {item.review.note}</div>}
           {item.review?.reviewed_at && current && (
             <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>Reviewed {new Date(item.review.reviewed_at).toLocaleString()}</div>
           )}
           {item.review && !current && item.docPath && (
-            <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 2 }}>New file uploaded since the last review.</div>
+            <div style={{ fontSize: 11, color: "#b45309", marginTop: 2 }}>New file uploaded since the last review.</div>
           )}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>

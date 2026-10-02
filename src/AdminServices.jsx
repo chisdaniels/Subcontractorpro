@@ -307,14 +307,14 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
             <label htmlFor="svc-edit-aliases" className="field-label">Search terms / aliases <span style={{ color: "#64748b" }}>(comma-separated — old names and familiar wording)</span></label>
             <textarea id="svc-edit-aliases" rows={2} value={editForm.aliases} onChange={e => setEditForm(f => ({ ...f, aliases: e.target.value }))} />
           </div>
-          <div style={{ border: "1px solid #334155", borderRadius: 8, padding: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b", marginBottom: 4 }}>PLATFORM DOCUMENT POLICY</div>
+          <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#b45309", marginBottom: 4 }}>PLATFORM DOCUMENT POLICY</div>
             <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
               What SubcontractorPros asks providers of this service to upload. This is platform policy, not a statement of what the law requires — use Rules for jurisdiction requirements.
             </div>
             <label htmlFor="svc-edit-lic" className="field-label">Trade license upload label <span style={{ color: "#64748b" }}>(blank = no trade license upload)</span></label>
             <input id="svc-edit-lic" placeholder="e.g. State Plumbing License" value={editForm.license_label} onChange={e => setEditForm(f => ({ ...f, license_label: e.target.value }))} />
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#f1f5f9", cursor: "pointer", marginTop: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0f172a", cursor: "pointer", marginTop: 8 }}>
               <input type="checkbox" checked={editForm.requires_bond} onChange={e => setEditForm(f => ({ ...f, requires_bond: e.target.checked }))} style={{ width: "auto", accentColor: "#f59e0b" }} />
               Require a surety bond upload
             </label>
@@ -339,7 +339,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
               {!s.is_active && <span className="badge unavail" style={{ marginLeft: 6 }}>Inactive</span>}
               {showGroup && s.group && <span style={{ color: "#64748b", fontWeight: 400 }}> · {s.group.name}</span>}
             </div>
-            <div style={{ fontSize: 12, color: "#94a3b8" }}>
+            <div style={{ fontSize: 12, color: "#475569" }}>
               {u.pros} pro{u.pros === 1 ? "" : "s"} · {u.openJobs} open job{u.openJobs === 1 ? "" : "s"}
               {" · "}
               Platform docs: {s.trade_license_label ? `${s.trade_license_label} upload` : "no trade license upload"}{s.requires_bond ? " + bond" : ""}
@@ -363,24 +363,24 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
             <button type="button" className="btn btn-outline btn-sm" onClick={() => openRules(s)} aria-expanded={rulesFor === s.name}>Rules ({sRules.length})</button>
             <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => toggleServiceActive(s)}>{s.is_active ? "Deactivate" : "Activate"}</button>
             {u.pros === 0 && u.allJobs === 0 && (
-              <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => deleteService(s)} style={{ borderColor: "#f87171", color: "#fca5a5" }}>Delete</button>
+              <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => deleteService(s)} style={{ borderColor: "#f87171", color: "#b91c1c" }}>Delete</button>
             )}
           </div>
         </div>
 
         {rulesFor === s.name && (
-          <div style={{ marginTop: 10, borderTop: "1px solid #334155", paddingTop: 10 }}>
+          <div style={{ marginTop: 10, borderTop: "1px solid #e2e8f0", paddingTop: 10 }}>
             <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
               Legal requirements by jurisdiction. Only record a determination you've confirmed from an authoritative source.
               Anywhere without a rule shows: “{REQUIREMENTS_FALLBACK}”
             </div>
-            {sRules.length === 0 && <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 8 }}>No rules yet.</div>}
+            {sRules.length === 0 && <div style={{ fontSize: 12, color: "#475569", marginBottom: 8 }}>No rules yet.</div>}
             {sRules.map(r => (
-              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, padding: "6px 0", borderBottom: "1px solid #1e293b", flexWrap: "wrap" }}>
-                <div style={{ minWidth: 0, flex: 1, color: "#f1f5f9" }}>
+              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, padding: "6px 0", borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" }}>
+                <div style={{ minWidth: 0, flex: 1, color: "#0f172a" }}>
                   {ruleLine(r)}
                   <div style={{ color: "#64748b" }}>
-                    {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" style={{ color: "#34d399" }}>source</a>}
+                    {r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" style={{ color: "#047857" }}>source</a>}
                     {r.reviewed_at && ` · reviewed ${r.reviewed_at}`}
                     {r.effective_date && ` · effective ${r.effective_date}`}
                     {r.notes && ` · ${r.notes}`}
@@ -491,7 +491,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
 
       {filterHits ? (
         <div style={{ display: "grid", gap: 6 }}>
-          {filterHits.filter(statusMatch).length === 0 && <div style={{ color: "#475569", padding: 12 }}>No match.</div>}
+          {filterHits.filter(statusMatch).length === 0 && <div style={{ color: "#64748b", padding: 12 }}>No match.</div>}
           {filterHits.filter(statusMatch).map(s => serviceRow(s, 0, null, true))}
         </div>
       ) : (
@@ -540,7 +540,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
                 </div>
                 {open && (
                   <div style={{ display: "grid", gap: 6, padding: "0 12px 12px" }}>
-                    {g.services.length === 0 && <div style={{ color: "#475569", fontSize: 13 }}>No services in this group.</div>}
+                    {g.services.length === 0 && <div style={{ color: "#64748b", fontSize: 13 }}>No services in this group.</div>}
                     {groupServices.map(s => serviceRow(s, g.services.indexOf(s), isReal ? g.services : null))}
                   </div>
                 )}
@@ -555,7 +555,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
       </button>
       {audit && (
         <div className="card" style={{ padding: 12, marginTop: 8, fontSize: 12 }}>
-          {audit.length === 0 && <div style={{ color: "#475569" }}>No changes recorded yet.</div>}
+          {audit.length === 0 && <div style={{ color: "#64748b" }}>No changes recorded yet.</div>}
           {audit.map(a => {
             const who = adminList.find(x => x.user_id === a.actor)?.email || (a.actor ? a.actor.slice(0, 8) : "system");
             const proName = contractors.find(c => String(c.id) === a.row_key)?.name || `contractor ${a.row_key}`;
@@ -567,7 +567,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
                   ? `denial ${a.action === "delete" ? "cleared" : "recorded"} for ${proName}`
                   : `${a.table_name.replace(/_/g, " ")} ${a.action}: ${a.row_key}`;
             return (
-              <div key={a.id} style={{ padding: "4px 0", borderBottom: "1px solid #1e293b", color: "#cbd5e1" }}>
+              <div key={a.id} style={{ padding: "4px 0", borderBottom: "1px solid #e2e8f0", color: "#334155" }}>
                 <span style={{ color: "#64748b" }}>{new Date(a.created_at).toLocaleString()}</span> · {who} · {target}
               </div>
             );

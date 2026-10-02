@@ -59,7 +59,7 @@ function Stars({ rating }) {
   return (
     <span aria-label={`${rating} out of 5 stars`}>
       {[1, 2, 3, 4, 5].map(i => (
-        <span key={i} aria-hidden="true" style={{ color: i <= Math.round(rating) ? "#f59e0b" : "#d1d5db", fontSize: 14 }}>★</span>
+        <span key={i} aria-hidden="true" style={{ color: i <= Math.round(rating) ? "#b45309" : "#d1d5db", fontSize: 14 }}>★</span>
       ))}
     </span>
   );
@@ -113,14 +113,14 @@ function CityStateInput({ id, value, onChange, placeholder = "City, State", requ
         onBlur={() => setTimeout(() => setOpen(false), 150)}
       />
       {open && suggestions.length > 0 && (
-        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#1e293b", border: "1px solid #334155", borderRadius: 10, zIndex: 60, maxHeight: 240, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 10, zIndex: 60, maxHeight: 240, overflowY: "auto", boxShadow: "0 8px 24px rgba(15,23,42,0.14)" }}>
           {suggestions.map(s => (
             <button
               key={s}
               type="button"
               onMouseDown={e => e.preventDefault()}
               onClick={() => { onChange(s); setSuggestions([]); setOpen(false); }}
-              style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", background: "transparent", border: "none", color: "#f1f5f9", cursor: "pointer", fontSize: 15, fontFamily: "inherit" }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", background: "transparent", border: "none", color: "#0f172a", cursor: "pointer", fontSize: 15, fontFamily: "inherit" }}
             >
               📍 {s}
             </button>
@@ -1542,9 +1542,8 @@ function avatarInitials(name) {
   return (
     <div style={{
       fontFamily: "'DM Sans', sans-serif",
-      background: "#0f172a",
       minHeight: "100vh",
-      color: "#f1f5f9",
+      color: "#0f172a",
       paddingTop: "env(safe-area-inset-top)",
       paddingLeft: "env(safe-area-inset-left)",
       paddingRight: "env(safe-area-inset-right)",
@@ -1552,95 +1551,103 @@ function avatarInitials(name) {
     }}>
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+          background-color: #ffffff;
+          /* Faint slanted pinstripes in the brand gold and a soft sky blue. */
+          background-image: repeating-linear-gradient(-45deg,
+            rgba(245,158,11,0.10) 0 1.5px, transparent 1.5px 26px,
+            rgba(56,189,248,0.08) 26px 27.5px, transparent 27.5px 52px);
+          background-attachment: fixed;
+        }
         ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-        .user-menu { position: absolute; top: calc(100% + 8px); right: 0; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 6px; min-width: 240px; display: flex; flex-direction: column; gap: 2px; z-index: 50; box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
-        .user-menu-who { padding: 10px 14px 12px; margin-bottom: 4px; border-bottom: 1px solid #334155; max-width: 280px; }
-        .user-menu-item { background: none; border: none; cursor: pointer; padding: 12px 14px; font-size: 14px; font-weight: 600; color: #f59e0b; border-radius: 8px; text-align: left; font-family: inherit; transition: background 0.15s, color 0.15s; white-space: nowrap; }
-        .user-menu-item:hover { background: #0f172a; }
+        .user-menu { position: absolute; top: calc(100% + 8px); right: 0; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 6px; min-width: 240px; display: flex; flex-direction: column; gap: 2px; z-index: 50; box-shadow: 0 12px 32px rgba(15,23,42,0.14); }
+        .user-menu-who { padding: 10px 14px 12px; margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; max-width: 280px; }
+        .user-menu-item { background: none; border: none; cursor: pointer; padding: 12px 14px; font-size: 14px; font-weight: 600; color: #b45309; border-radius: 8px; text-align: left; font-family: inherit; transition: background 0.15s, color 0.15s; white-space: nowrap; }
+        .user-menu-item:hover { background: #f8fafc; }
         .user-menu-item:active { background: #f59e0b; color: #0f172a; }
         .user-menu-item:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; }
-        .toolbar-btn { flex: 1; background: #1e293b; border: 1px solid #334155; color: #f59e0b; border-radius: 12px; padding: 14px 16px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s; }
+        .toolbar-btn { flex: 1; background: #ffffff; border: 1px solid #e2e8f0; color: #b45309; border-radius: 12px; padding: 14px 16px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s; }
         .toolbar-btn:hover { border-color: #f59e0b; }
         .toolbar-btn:active { transform: scale(0.98); background: #f59e0b; border-color: #f59e0b; color: #0f172a; }
         .toolbar-btn.active { background: #f59e0b; border-color: #f59e0b; color: #0f172a; }
         .toolbar-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
-        .card { background: #1e293b; border-radius: 16px; border: 1px solid #334155; transition: transform 0.18s, box-shadow 0.18s; }
-        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.25); }
-        .badge { display: inline-block; background: #334155; color: #94a3b8; border-radius: 99px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
-        .avail { background: #064e3b; color: #34d399; }
-        .unavail { background: #3b1515; color: #f87171; }
+        .card { background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(15,23,42,0.06); transition: transform 0.18s, box-shadow 0.18s; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(15,23,42,0.12); }
+        .badge { display: inline-block; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; border-radius: 99px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
+        .avail { background: #ecfdf5; color: #047857; }
+        .unavail { background: #fef2f2; color: #dc2626; }
         .btn { border: none; border-radius: 10px; padding: 10px 20px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 14px; transition: opacity 0.15s, transform 0.15s; }
         .btn:hover { opacity: 0.88; transform: scale(0.98); }
         .btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
         .btn-gold { background: #f59e0b; color: #0f172a; }
-        .btn-outline { background: transparent; border: 1.5px solid #334155; color: #f59e0b; transition: opacity 0.15s, transform 0.15s, background 0.15s, border-color 0.15s, color 0.15s; }
+        .btn-outline { background: #ffffff; border: 1.5px solid #e2e8f0; color: #b45309; transition: opacity 0.15s, transform 0.15s, background 0.15s, border-color 0.15s, color 0.15s; }
         .btn-outline:hover { border-color: #f59e0b; }
         .btn-outline:not(:disabled):active, .btn-outline[aria-expanded="true"] { background: #f59e0b; border-color: #f59e0b !important; color: #0f172a !important; opacity: 1; }
         .btn-sm { padding: 6px 14px; font-size: 13px; border-radius: 8px; }
-        input, textarea, select { background: #0f172a; border: 1.5px solid #334155; border-radius: 10px; color: #f1f5f9; padding: 10px 14px; font-family: inherit; font-size: 16px; width: 100%; outline: none; }
+        input, textarea, select { background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; color: #0f172a; padding: 10px 14px; font-family: inherit; font-size: 16px; width: 100%; outline: none; }
         input:focus, textarea:focus, select:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
         .msg-me { background: #f59e0b; color: #0f172a; border-radius: 18px 18px 4px 18px; }
-        .msg-them { background: #1e293b; border: 1px solid #334155; border-radius: 18px 18px 18px 4px; }
+        .msg-them { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 18px 18px 18px 4px; }
         .notification { position: fixed; top: calc(env(safe-area-inset-top) + 20px); right: calc(env(safe-area-inset-right) + 20px); background: #f59e0b; color: #0f172a; padding: 12px 22px; border-radius: 12px; font-weight: 700; z-index: 999; animation: slidein 0.3s; }
         @keyframes slidein { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
-        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 100; display: flex; align-items: center; justify-content: center; padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); backdrop-filter: blur(2px); overflow-y: auto; }
-        .modal { background: #1e293b; border-radius: 20px; border: 1px solid #334155; width: 100%; max-width: 480px; padding: 28px; max-height: 90vh; overflow-y: auto; overflow-x: hidden; }
+        .modal-bg { position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 100; display: flex; align-items: center; justify-content: center; padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); backdrop-filter: blur(2px); overflow-y: auto; }
+        .modal { background: #ffffff; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 24px 60px rgba(15,23,42,0.25); width: 100%; max-width: 480px; padding: 28px; max-height: 90vh; overflow-y: auto; overflow-x: hidden; }
         .modal input, .modal textarea, .modal select { max-width: 100%; min-width: 0; }
         .modal input[type="date"] { min-width: 0; }
         .job-grid > * { min-width: 0; }
-        .field-label { font-size: 12px; color: #94a3b8; margin-bottom: 4px; display: block; }
+        .field-label { font-size: 12px; color: #475569; margin-bottom: 4px; display: block; }
         .svc-picker { display: flex; flex-direction: column; gap: 8px; }
         .svc-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
-        .svc-chip { display: inline-flex; align-items: center; gap: 4px; background: rgba(245,158,11,0.12); border: 1px solid #f59e0b; color: #f1f5f9; border-radius: 99px; padding: 3px 4px 3px 12px; font-size: 13px; max-width: 100%; flex-wrap: wrap; }
+        .svc-chip { display: inline-flex; align-items: center; gap: 4px; background: rgba(245,158,11,0.12); border: 1px solid #f59e0b; color: #0f172a; border-radius: 99px; padding: 3px 4px 3px 12px; font-size: 13px; max-width: 100%; flex-wrap: wrap; }
         .svc-chip.primary { background: #f59e0b; color: #0f172a; font-weight: 600; }
         .svc-chip-tag { font-size: 11px; font-weight: 800; margin-right: 2px; }
         .svc-chip-btn { background: transparent; border: none; color: inherit; cursor: pointer; font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 99px; opacity: 0.8; }
-        .svc-chip-btn:hover { opacity: 1; background: rgba(15,23,42,0.3); }
+        .svc-chip-btn:hover { opacity: 1; background: rgba(15,23,42,0.1); }
         .svc-chip-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 1px; }
-        .svc-list { max-height: 340px; overflow-y: auto; border: 1px solid #334155; border-radius: 10px; background: #0f172a; }
+        .svc-list { max-height: 340px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; }
         .svc-results { display: grid; gap: 6px; padding: 8px; }
-        .svc-group + .svc-group { border-top: 1px solid #1e293b; }
-        .svc-group-btn { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; background: transparent; border: none; color: #f1f5f9; font: inherit; font-size: 14px; font-weight: 600; padding: 12px; cursor: pointer; text-align: left; }
+        .svc-group + .svc-group { border-top: 1px solid #e2e8f0; }
+        .svc-group-btn { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; background: transparent; border: none; color: #0f172a; font: inherit; font-size: 14px; font-weight: 600; padding: 12px; cursor: pointer; text-align: left; }
         .svc-group-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; border-radius: 8px; }
         .svc-group-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0 10px 12px; }
-        .svc-option { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; cursor: pointer; font-size: 13px; }
+        .svc-option { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; cursor: pointer; font-size: 13px; }
         .svc-option.checked { border-color: #f59e0b; background: rgba(245,158,11,0.12); }
         .svc-option input { width: auto; accent-color: #f59e0b; margin-top: 2px; flex-shrink: 0; }
         .svc-option:focus-within { outline: 2px solid #f59e0b; outline-offset: 1px; }
-        .admin-svc-row { display: flex; padding: 10px 12px; background: #0f172a; border-radius: 8px; font-size: 13px; gap: 10px; }
+        .admin-svc-row { display: flex; padding: 10px 12px; background: #f8fafc; border-radius: 8px; font-size: 13px; gap: 10px; }
         .join-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px; }
         .join-card { padding: 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border-color: #f59e0b; }
-        .admin-section { border: 1px solid #334155; border-radius: 14px; background: #111a2e; margin-bottom: 12px; }
+        .admin-section { border: 1px solid #e2e8f0; border-radius: 14px; background: #ffffff; box-shadow: 0 1px 3px rgba(15,23,42,0.06); margin-bottom: 12px; }
         .admin-section-h { margin: 0; font-size: 18px; font-weight: 700; }
-        .admin-section-toggle { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; background: transparent; border: none; color: #f1f5f9; font: inherit; padding: 16px; cursor: pointer; text-align: left; border-radius: 14px; }
-        .admin-section-toggle:hover .admin-section-caret { color: #f59e0b; }
+        .admin-section-toggle { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; background: transparent; border: none; color: #0f172a; font: inherit; padding: 16px; cursor: pointer; text-align: left; border-radius: 14px; }
+        .admin-section-toggle:hover .admin-section-caret { color: #b45309; }
         .admin-section-toggle:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; }
         .admin-section-summary { display: block; font-size: 12px; font-weight: 500; color: #64748b; margin-top: 2px; }
-        .admin-section-caret { color: #94a3b8; font-size: 16px; }
+        .admin-section-caret { color: #475569; font-size: 16px; }
         .admin-section-body { padding: 0 16px 16px; }
         .admin-section-filter { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
         .btn-outline[aria-pressed="true"] { background: #f59e0b; border-color: #f59e0b !important; color: #0f172a !important; }
         .filter-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
         .filter-bar select { width: auto; min-width: 180px; max-width: 100%; }
         .svc-filter { position: relative; min-width: 220px; max-width: 100%; }
-        .svc-filter-btn { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; background: #0f172a; border: 1.5px solid #334155; border-radius: 10px; color: #f1f5f9; padding: 10px 14px; font-family: inherit; font-size: 16px; cursor: pointer; text-align: left; }
+        .svc-filter-btn { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; color: #0f172a; padding: 10px 14px; font-family: inherit; font-size: 16px; cursor: pointer; text-align: left; }
         .svc-filter-btn:focus-visible, .svc-filter-btn[aria-expanded="true"] { outline: none; border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
         .svc-filter-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .svc-filter-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 100%; width: max-content; max-width: min(380px, calc(100vw - 32px)); max-height: min(60vh, 440px); overflow-y: auto; background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 6px; box-shadow: 0 12px 32px rgba(0,0,0,0.5); outline: none; }
-        .svc-filter-heading { color: #f59e0b; font-size: 17px; font-weight: 800; letter-spacing: 0.3px; padding: 14px 10px 6px; margin-top: 4px; border-top: 1px solid #1e293b; }
-        .svc-filter-opt { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px 8px 24px; border-radius: 6px; font-size: 14px; color: #cbd5e1; cursor: pointer; }
-        .svc-filter-opt.top { padding-left: 10px; font-weight: 600; color: #f1f5f9; }
-        .svc-filter-opt.group { font-weight: 600; color: #f1f5f9; }
-        .svc-filter-opt.active { background: #1e293b; }
-        .svc-filter-opt[aria-selected="true"] { color: #f59e0b; }
+        .svc-filter-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 100%; width: max-content; max-width: min(380px, calc(100vw - 32px)); max-height: min(60vh, 440px); overflow-y: auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px; box-shadow: 0 12px 32px rgba(15,23,42,0.16); outline: none; }
+        .svc-filter-heading { color: #b45309; font-size: 17px; font-weight: 800; letter-spacing: 0.3px; padding: 14px 10px 6px; margin-top: 4px; border-top: 1px solid #e2e8f0; }
+        .svc-filter-opt { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px 8px 24px; border-radius: 6px; font-size: 14px; color: #334155; cursor: pointer; }
+        .svc-filter-opt.top { padding-left: 10px; font-weight: 600; color: #0f172a; }
+        .svc-filter-opt.group { font-weight: 600; color: #0f172a; }
+        .svc-filter-opt.active { background: #fef3c7; }
+        .svc-filter-opt[aria-selected="true"] { color: #b45309; }
         .contractor-card:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; border-radius: 16px; }
         .star-btn { background: none; border: none; cursor: pointer; padding: 2px; font-size: 24px; line-height: 1; transition: transform 0.1s; }
         .star-btn:hover { transform: scale(1.15); }
         .star-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; border-radius: 2px; }
         .messages-layout { display: grid; grid-template-columns: 220px 1fr; gap: 16px; height: 500px; }
-        .chat-sidebar-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 16px; background: #1e293b; border: 1px solid #334155; width: 100%; text-align: left; font-family: inherit; transition: border-color 0.15s; }
+        .chat-sidebar-btn { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; border-radius: 16px; background: #ffffff; border: 1px solid #e2e8f0; width: 100%; text-align: left; font-family: inherit; transition: border-color 0.15s; }
         .chat-sidebar-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
         @media (max-width: 640px) {
           .messages-layout { grid-template-columns: 1fr; height: auto; }
@@ -1662,11 +1669,11 @@ function avatarInitials(name) {
         <div className="notification" role="alert" aria-live="assertive">✓ {notification}</div>
       )}
 
-      <header style={{ background: "#0f172a", borderBottom: "1px solid #1e293b", padding: "0 20px" }}>
+      <header style={{ background: "rgba(255,255,255,0.94)", borderBottom: "1px solid #e2e8f0", padding: "0 20px", boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 60, gap: 12, flexWrap: "wrap", padding: "8px 0", position: "relative" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, minWidth: 0 }}>
-            <span style={{ fontSize: 20, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", whiteSpace: "nowrap" }}>⚒ SUBCONTRACTOR</span>
-            <span style={{ fontSize: 11, fontFamily: "'Bebas Neue', cursive", color: "#f59e0b", fontWeight: 600, letterSpacing: 1 }}>PROS</span>
+            <span style={{ fontSize: 20, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", whiteSpace: "nowrap" }}>⚒ SUBCONTRACTOR</span>
+            <span style={{ fontSize: 11, fontFamily: "'Bebas Neue', cursive", color: "#b45309", fontWeight: 600, letterSpacing: 1 }}>PROS</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", position: "relative" }}>
             {user ? (
@@ -1687,7 +1694,7 @@ function avatarInitials(name) {
                     <div role="menu" className="user-menu">
                       <div role="presentation" className="user-menu-who">
                         <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600, letterSpacing: 0.5 }}>SIGNED IN AS</div>
-                        <div style={{ fontSize: 13, color: "#f1f5f9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</div>
+                        <div style={{ fontSize: 13, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</div>
                       </div>
                       {isContractor && myContractor && (
                         <button
@@ -1695,7 +1702,7 @@ function avatarInitials(name) {
                           role="menuitem"
                           onClick={() => { toggleAvailable(); setUserMenuOpen(false); }}
                         >
-                          <span style={{ color: myContractor.available ? "#34d399" : "#f87171" }}>●</span>
+                          <span style={{ color: myContractor.available ? "#047857" : "#dc2626" }}>●</span>
                           &nbsp;{myContractor.available ? "Marked Open — tap to go Busy" : "Marked Busy — tap to go Open"}
                         </button>
                       )}
@@ -1857,7 +1864,7 @@ function avatarInitials(name) {
             <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: selfDeactivated ? "#64748b" : "#f87171" }}>
               <div>
                 <div style={{ fontWeight: 700, marginBottom: 2 }}>Your profile is off the board</div>
-                <div style={{ fontSize: 13, color: "#94a3b8" }}>
+                <div style={{ fontSize: 13, color: "#475569" }}>
                   {selfDeactivated
                     ? "Homeowners can't find you in search right now. Your account and history are preserved."
                     : "An admin has taken your profile off the board. Contact support if you'd like it reviewed for reactivation."}
@@ -1878,12 +1885,12 @@ function avatarInitials(name) {
 
         {isContractor && myContractor?.denied_at && (
           <div className="card" style={{ padding: 16, marginBottom: 20, borderColor: "#f87171" }}>
-            <div style={{ fontWeight: 700, marginBottom: 4, color: "#fca5a5" }}>Application was denied</div>
-            <div style={{ fontSize: 13, color: "#fca5a5", background: "#3b1515", borderRadius: 8, padding: 10, marginBottom: 10 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4, color: "#b91c1c" }}>Application was denied</div>
+            <div style={{ fontSize: 13, color: "#b91c1c", background: "#fef2f2", borderRadius: 8, padding: 10, marginBottom: 10 }}>
               <div style={{ fontSize: 11, letterSpacing: 1, fontWeight: 700, marginBottom: 4 }}>REASON</div>
               {myContractor.denial_reason || "(no reason provided)"}
             </div>
-            <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 10 }}>
+            <div style={{ fontSize: 13, color: "#475569", marginBottom: 10 }}>
               Correct the issue and reapply — click below to update your profile. Once you save, our admin team will review again.
             </div>
             <button className="btn btn-gold btn-sm" onClick={openProfileModal}>
@@ -1896,7 +1903,7 @@ function avatarInitials(name) {
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#f87171" }}>
             <div>
               <div style={{ fontWeight: 700, marginBottom: 2 }}>Upload your business license &amp; insurance</div>
-              <div style={{ fontSize: 13, color: "#94a3b8" }}>Required before our team can review your profile and you can accept jobs.</div>
+              <div style={{ fontSize: 13, color: "#475569" }}>Required before our team can review your profile and you can accept jobs.</div>
             </div>
             <button className="btn btn-gold btn-sm" onClick={openProfileModal}>Add Documents</button>
           </div>
@@ -1906,7 +1913,7 @@ function avatarInitials(name) {
           <div className="card" style={{ padding: 16, marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderColor: "#fbbf24" }}>
             <div>
               <div style={{ fontWeight: 700, marginBottom: 2 }}>⏳ Documents under review</div>
-              <div style={{ fontSize: 13, color: "#94a3b8" }}>Our team is reviewing your documents. You'll be able to accept jobs once your profile is approved.</div>
+              <div style={{ fontSize: 13, color: "#475569" }}>Our team is reviewing your documents. You'll be able to accept jobs once your profile is approved.</div>
             </div>
             <button className="btn btn-outline btn-sm" onClick={openProfileModal}>Update Documents</button>
           </div>
@@ -1916,7 +1923,7 @@ function avatarInitials(name) {
         {/* SEARCH TAB */}
         {tab === "search" && (
           <section aria-labelledby="search-heading">
-            <h1 id="search-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>FIND A CONTRACTOR</h1>
+            <h1 id="search-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 4 }}>FIND A CONTRACTOR</h1>
             <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Construction, cleaning, maintenance, and specialty service pros</p>
 
             {!user && (
@@ -1924,7 +1931,7 @@ function avatarInitials(name) {
                 <div className="card join-card">
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>🏠 Need work done?</div>
-                    <div style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
+                    <div style={{ color: "#475569", fontSize: 13, lineHeight: 1.5 }}>
                       Post your job for free and get matched with verified local pros. Homeowners and businesses welcome.
                     </div>
                   </div>
@@ -1939,7 +1946,7 @@ function avatarInitials(name) {
                 <div className="card join-card">
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>⚒ Are you a subcontractor?</div>
-                    <div style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>
+                    <div style={{ color: "#475569", fontSize: 13, lineHeight: 1.5 }}>
                       Set up your business profile, upload your license &amp; insurance, and start accepting local jobs. Free to join.
                     </div>
                   </div>
@@ -1997,12 +2004,12 @@ function avatarInitials(name) {
                         <span className="badge avail" title={VERIFIED_PRO_MEANING}>✓ Verified pro</span>
                       )}
                     </div>
-                    <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 6 }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
+                    <div style={{ color: "#475569", fontSize: 13, marginBottom: 6 }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
                     <VerifiedCredentialBadges contractor={c} />
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
                       <Stars rating={c.rating} />
-                      <span style={{ fontSize: 13, color: "#94a3b8" }}>{c.rating} ({c.reviews_count} reviews)</span>
-                      <span style={{ color: "#f59e0b", fontWeight: 700, fontSize: 13 }}>${c.hourly}/hr</span>
+                      <span style={{ fontSize: 13, color: "#475569" }}>{c.rating} ({c.reviews_count} reviews)</span>
+                      <span style={{ color: "#b45309", fontWeight: 700, fontSize: 13 }}>${c.hourly}/hr</span>
                     </div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {c.tags.map(tag => <span key={tag} className="badge">{tag}</span>)}
@@ -2018,7 +2025,7 @@ function avatarInitials(name) {
                 </div>
               ))}
               {filtered.length === 0 && (
-                <div style={{ textAlign: "center", color: "#475569", padding: 40 }} role="status">
+                <div style={{ textAlign: "center", color: "#64748b", padding: 40 }} role="status">
                   No contractors found. Try adjusting your search.
                 </div>
               )}
@@ -2029,11 +2036,11 @@ function avatarInitials(name) {
         {/* POST JOB TAB */}
         {tab === "post" && !user && (
           <section aria-labelledby="post-heading" style={{ maxWidth: 560 }}>
-            <h1 id="post-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>POST A JOB</h1>
+            <h1 id="post-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 4 }}>POST A JOB</h1>
             <div className="card" style={{ padding: 28, textAlign: "center" }}>
               <div style={{ fontSize: 36, marginBottom: 12 }} aria-hidden="true">🔒</div>
               <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 6 }}>Sign up to post a job</div>
-              <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 18 }}>
+              <div style={{ color: "#475569", fontSize: 14, marginBottom: 18 }}>
                 Create a free customer account to post jobs and connect with verified contractors.
               </div>
               <button
@@ -2048,7 +2055,7 @@ function avatarInitials(name) {
 
         {tab === "post" && isCustomer && (
           <section aria-labelledby="post-heading" style={{ maxWidth: 720 }}>
-            <h1 id="post-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>POST A JOB</h1>
+            <h1 id="post-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 4 }}>POST A JOB</h1>
             <p style={{ color: "#64748b", marginBottom: 24, fontSize: 14 }}>Describe your project and let contractors come to you</p>
             <form
               className="card"
@@ -2057,7 +2064,7 @@ function avatarInitials(name) {
               noValidate
             >
               <div>
-                <label htmlFor="job-title" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                <label htmlFor="job-title" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>
                   Job Title <span aria-hidden="true">*</span>
                 </label>
                 <input
@@ -2077,7 +2084,7 @@ function avatarInitials(name) {
                 label={<>Services Needed * <span style={{ color: "#64748b" }}>(pick one or more — each becomes a separate sub-job that a matching pro can accept)</span></>}
               />
               <div>
-                <label htmlFor="job-budget" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Budget ($) <span style={{ color: "#64748b" }}>(total across all trades)</span></label>
+                <label htmlFor="job-budget" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Budget ($) <span style={{ color: "#64748b" }}>(total across all trades)</span></label>
                 <input
                   id="job-budget"
                   placeholder="e.g. 5000"
@@ -2088,7 +2095,7 @@ function avatarInitials(name) {
                 />
               </div>
               <div>
-                <label htmlFor="job-location" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                <label htmlFor="job-location" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>
                   Location <span aria-hidden="true">*</span>
                 </label>
                 <CityStateInput
@@ -2099,16 +2106,16 @@ function avatarInitials(name) {
                 />
               </div>
               {jobForm.trades.length > 0 && (
-                <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, fontSize: 12, color: "#94a3b8", lineHeight: 1.6 }} role="note">
-                  <div style={{ fontWeight: 700, color: "#cbd5e1", marginBottom: 4 }}>Licensing</div>
+                <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, fontSize: 12, color: "#475569", lineHeight: 1.6 }} role="note">
+                  <div style={{ fontWeight: 700, color: "#334155", marginBottom: 4 }}>Licensing</div>
                   {jobForm.trades.map(t => (
-                    <div key={t}><strong style={{ color: "#f1f5f9", fontWeight: 600 }}>{t}:</strong> {licensingSummary(t, jobForm.location)}</div>
+                    <div key={t}><strong style={{ color: "#0f172a", fontWeight: 600 }}>{t}:</strong> {licensingSummary(t, jobForm.location)}</div>
                   ))}
                   <div style={{ marginTop: 4, color: "#64748b" }}>Confirm any license your project needs with the pro you hire and your local permitting office.</div>
                 </div>
               )}
               <div>
-                <label htmlFor="job-desc" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Job Description</label>
+                <label htmlFor="job-desc" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Job Description</label>
                 <textarea
                   id="job-desc"
                   rows={4}
@@ -2118,11 +2125,11 @@ function avatarInitials(name) {
                 />
               </div>
 
-              <div style={{ borderTop: "1px solid #334155", paddingTop: 14, marginTop: 4 }}>
-                <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>YOUR CONTACT INFO</div>
+              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 14, marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: "#b45309", fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>YOUR CONTACT INFO</div>
                 <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>Only shared with the contractor who accepts your job.</div>
                 <div>
-                  <label htmlFor="job-name" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                  <label htmlFor="job-name" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>
                     Your Name <span aria-hidden="true">*</span>
                   </label>
                   <input
@@ -2136,7 +2143,7 @@ function avatarInitials(name) {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }} className="job-grid">
                   <div>
-                    <label htmlFor="job-email" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                    <label htmlFor="job-email" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>
                       Email <span aria-hidden="true">*</span>
                     </label>
                     <input
@@ -2150,7 +2157,7 @@ function avatarInitials(name) {
                     />
                   </div>
                   <div>
-                    <label htmlFor="job-phone" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Phone (optional)</label>
+                    <label htmlFor="job-phone" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Phone (optional)</label>
                     <input
                       id="job-phone"
                       type="tel"
@@ -2167,11 +2174,11 @@ function avatarInitials(name) {
               </button>
             </form>
 
-            <h2 style={{ fontSize: 20, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginTop: 32, marginBottom: 12 }}>
+            <h2 style={{ fontSize: 20, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginTop: 32, marginBottom: 12 }}>
               YOUR POSTED JOBS
             </h2>
             {myJobs.length === 0 ? (
-              <div style={{ color: "#475569", padding: 20 }}>You haven't posted any jobs yet.</div>
+              <div style={{ color: "#64748b", padding: 20 }}>You haven't posted any jobs yet.</div>
             ) : (
               <div style={{ display: "grid", gap: 12 }} role="list" aria-label="Your posted jobs">
                 {myJobs.map(j => {
@@ -2179,14 +2186,14 @@ function avatarInitials(name) {
                   return (
                   <div key={j.id} className="card" style={{ padding: 18, opacity: removedByAdmin ? 0.7 : 1, borderColor: removedByAdmin ? "#f87171" : undefined }} role="listitem">
                     {removedByAdmin && (
-                      <div style={{ background: "#3b1515", border: "1px solid #7f1d1d", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 13, color: "#fca5a5" }}>
+                      <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 13, color: "#b91c1c" }}>
                         This job was removed by an admin. Contact support if you'd like it reviewed.
                       </div>
                     )}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                       <div style={{ fontWeight: 700, fontSize: 16 }}>{j.title}</div>
                       {j.budget != null && (
-                        <span style={{ color: "#f59e0b", fontWeight: 700, fontSize: 14 }}>${Number(j.budget).toLocaleString()}</span>
+                        <span style={{ color: "#b45309", fontWeight: 700, fontSize: 14 }}>${Number(j.budget).toLocaleString()}</span>
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
@@ -2201,18 +2208,18 @@ function avatarInitials(name) {
                             : <span className="badge">Open</span>}
                     </div>
                     {j.accepter && !removedByAdmin && (
-                      <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 8 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 6 }}>ACCEPTED BY</div>
+                      <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#b45309", marginBottom: 6 }}>ACCEPTED BY</div>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
                           <div>
                             <div style={{ fontWeight: 600 }}>{j.accepter.name}</div>
-                            <div style={{ fontSize: 13, color: "#94a3b8" }}>{contractorTrades(j.accepter).join(" · ")} · {j.accepter.location}</div>
+                            <div style={{ fontSize: 13, color: "#475569" }}>{contractorTrades(j.accepter).join(" · ")} · {j.accepter.location}</div>
                             {j.accepter.website && (
                               <div style={{ fontSize: 13, marginTop: 4 }}>
                                 <a
                                   href={/^https?:\/\//i.test(j.accepter.website) ? j.accepter.website : `https://${j.accepter.website}`}
                                   target="_blank" rel="noreferrer"
-                                  style={{ color: "#f59e0b", textDecoration: "underline" }}
+                                  style={{ color: "#b45309", textDecoration: "underline" }}
                                 >
                                   {j.accepter.website.replace(/^https?:\/\//i, "")}
                                 </a>
@@ -2237,14 +2244,14 @@ function avatarInitials(name) {
                             </div>
                           )}
                         </div>
-                        <div style={{ background: "#064e3b", border: "1px solid #047857", borderRadius: 8, padding: 12, fontSize: 13 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#34d399", marginBottom: 8 }}>
+                        <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 8, padding: 12, fontSize: 13 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#047857", marginBottom: 8 }}>
                             CREDENTIALS
                           </div>
                           <CredentialList contractor={j.accepter} reqMap={tradeReqMap} showDocs />
                           <button
                             className="btn btn-outline btn-sm"
-                            style={{ marginTop: 10, borderColor: "#047857", color: "#a7f3d0" }}
+                            style={{ marginTop: 10, borderColor: "#a7f3d0", color: "#047857" }}
                             onClick={() => setModal(j.accepter)}
                           >
                             View full contractor profile
@@ -2260,16 +2267,16 @@ function avatarInitials(name) {
                         <button
                           className="btn btn-outline btn-sm"
                           onClick={() => deleteJob(j)}
-                          style={{ borderColor: "#f87171", color: "#fca5a5" }}
+                          style={{ borderColor: "#f87171", color: "#b91c1c" }}
                         >
                           Delete Job
                         </button>
                       </div>
                     )}
                     {j.description && (
-                      <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>{j.description}</p>
+                      <p style={{ color: "#475569", fontSize: 13, lineHeight: 1.5 }}>{j.description}</p>
                     )}
-                    <div style={{ color: "#475569", fontSize: 11, marginTop: 8 }}>
+                    <div style={{ color: "#64748b", fontSize: 11, marginTop: 8 }}>
                       Posted {new Date(j.created_at).toLocaleString()}
                     </div>
                   </div>
@@ -2283,20 +2290,20 @@ function avatarInitials(name) {
         {/* JOBS TAB (contractors only) */}
         {tab === "jobs" && user && (
           <section aria-labelledby="jobs-heading">
-            <h1 id="jobs-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>OPEN JOBS</h1>
+            <h1 id="jobs-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 4 }}>OPEN JOBS</h1>
             <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Browse jobs posted by homeowners and businesses. Accept work that matches your services.</p>
             <div className="filter-bar" style={{ alignItems: "center" }}>
               <label htmlFor="job-trade-filter" className="sr-only">Filter by service</label>
               <ServiceFilter id="job-trade-filter" catalog={catalog} value={serviceFilter} onChange={setServiceFilter} />
               {myContractor && (
-                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#cbd5e1", cursor: "pointer" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#334155", cursor: "pointer" }}>
                   <input type="checkbox" checked={onlyMyServices} onChange={e => setOnlyMyServices(e.target.checked)} style={{ width: "auto", accentColor: "#f59e0b" }} />
                   Only my services
                 </label>
               )}
             </div>
             {jobs.length === 0 ? (
-              <div style={{ color: "#475569", padding: 40, textAlign: "center" }} role="status">
+              <div style={{ color: "#64748b", padding: 40, textAlign: "center" }} role="status">
                 No jobs posted yet. Check back soon.
               </div>
             ) : (
@@ -2307,7 +2314,7 @@ function avatarInitials(name) {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                         <div style={{ fontWeight: 700, fontSize: 17 }}>{j.title}</div>
                         {j.budget != null && (
-                          <span style={{ color: "#f59e0b", fontWeight: 700, fontSize: 15 }}>${Number(j.budget).toLocaleString()}</span>
+                          <span style={{ color: "#b45309", fontWeight: 700, fontSize: 15 }}>${Number(j.budget).toLocaleString()}</span>
                         )}
                       </div>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
@@ -2318,10 +2325,10 @@ function avatarInitials(name) {
                         Licensing — {licensingSummary(j.trade, j.location)}
                       </div>
                       {j.description && (
-                        <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.55, marginBottom: 10 }}>{j.description}</p>
+                        <p style={{ color: "#475569", fontSize: 13, lineHeight: 1.55, marginBottom: 10 }}>{j.description}</p>
                       )}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                        <div style={{ color: "#475569", fontSize: 11 }}>
+                        <div style={{ color: "#64748b", fontSize: 11 }}>
                           Posted {new Date(j.created_at).toLocaleString()}
                         </div>
                         {!j.accepted_by && (() => {
@@ -2352,7 +2359,7 @@ function avatarInitials(name) {
                   );
                 })}
                 {openJobsShown.length === 0 && (
-                  <div style={{ color: "#475569", textAlign: "center", padding: 24 }} role="status">
+                  <div style={{ color: "#64748b", textAlign: "center", padding: 24 }} role="status">
                     No open jobs match these filters. Try "All services", or check <button className="btn btn-outline btn-sm" onClick={() => setTab("myjobs")} style={{ marginLeft: 4 }}>My Jobs</button> for work you've already accepted.
                   </div>
                 )}
@@ -2367,11 +2374,11 @@ function avatarInitials(name) {
           const posted    = myJobs;
           return (
             <section aria-labelledby="myjobs-heading">
-              <h1 id="myjobs-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>MY JOBS</h1>
+              <h1 id="myjobs-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 4 }}>MY JOBS</h1>
               <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Everything you're working on and everything you've posted.</p>
 
               {workingOn.length === 0 && posted.length === 0 && (
-                <div className="card" style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>
+                <div className="card" style={{ padding: 24, textAlign: "center", color: "#475569" }}>
                   Nothing here yet. <button className="btn btn-outline btn-sm" onClick={() => setTab("search")}>Find a Pro</button> or <button className="btn btn-outline btn-sm" onClick={() => setTab("post")}>Post a Job</button>.
                 </div>
               )}
@@ -2384,7 +2391,7 @@ function avatarInitials(name) {
                       <div key={j.id} className="card" style={{ padding: 18 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                           <div style={{ fontWeight: 700, fontSize: 16 }}>{j.title}</div>
-                          {j.budget != null && <span style={{ color: "#f59e0b", fontWeight: 700 }}>${Number(j.budget).toLocaleString()}</span>}
+                          {j.budget != null && <span style={{ color: "#b45309", fontWeight: 700 }}>${Number(j.budget).toLocaleString()}</span>}
                         </div>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                           <span className="badge">{j.trade}</span>
@@ -2393,16 +2400,16 @@ function avatarInitials(name) {
                             ? <span className="badge avail">✓ Completed</span>
                             : <span className="badge avail">Accepted</span>}
                         </div>
-                        {j.description && <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.55, marginBottom: 10 }}>{j.description}</p>}
-                        <div style={{ background: "#064e3b", border: "1px solid #047857", borderRadius: 10, padding: 12 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#34d399", marginBottom: 6 }}>HOMEOWNER CONTACT</div>
+                        {j.description && <p style={{ color: "#475569", fontSize: 13, lineHeight: 1.55, marginBottom: 10 }}>{j.description}</p>}
+                        <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 10, padding: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#047857", marginBottom: 6 }}>HOMEOWNER CONTACT</div>
                           {j.homeowner_name && <div style={{ fontWeight: 600 }}>{j.homeowner_name}</div>}
                           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 13, marginTop: 4 }}>
-                            {j.homeowner_email && <a href={`mailto:${j.homeowner_email}`} style={{ color: "#34d399", textDecoration: "underline" }}>{j.homeowner_email}</a>}
-                            {j.homeowner_phone && <a href={`tel:${j.homeowner_phone}`} style={{ color: "#34d399", textDecoration: "underline" }}>{j.homeowner_phone}</a>}
+                            {j.homeowner_email && <a href={`mailto:${j.homeowner_email}`} style={{ color: "#047857", textDecoration: "underline" }}>{j.homeowner_email}</a>}
+                            {j.homeowner_phone && <a href={`tel:${j.homeowner_phone}`} style={{ color: "#047857", textDecoration: "underline" }}>{j.homeowner_phone}</a>}
                           </div>
                         </div>
-                        {j.accepted_at && <div style={{ color: "#475569", fontSize: 11, marginTop: 8 }}>Accepted {new Date(j.accepted_at).toLocaleString()}</div>}
+                        {j.accepted_at && <div style={{ color: "#64748b", fontSize: 11, marginTop: 8 }}>Accepted {new Date(j.accepted_at).toLocaleString()}</div>}
                       </div>
                     ))}
                   </div>
@@ -2417,7 +2424,7 @@ function avatarInitials(name) {
                       <div key={j.id} className="card" style={{ padding: 18 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                           <div style={{ fontWeight: 700, fontSize: 16 }}>{j.title}</div>
-                          {j.budget != null && <span style={{ color: "#f59e0b", fontWeight: 700 }}>${Number(j.budget).toLocaleString()}</span>}
+                          {j.budget != null && <span style={{ color: "#b45309", fontWeight: 700 }}>${Number(j.budget).toLocaleString()}</span>}
                         </div>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                           <span className="badge">{j.trade}</span>
@@ -2429,8 +2436,8 @@ function avatarInitials(name) {
                               : <span className="badge">Open</span>}
                         </div>
                         {j.accepter && (
-                          <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 8 }}>
-                            Accepted by <strong style={{ color: "#f1f5f9" }}>{j.accepter.name}</strong> — see full details on the Post tab.
+                          <div style={{ fontSize: 13, color: "#475569", marginBottom: 8 }}>
+                            Accepted by <strong style={{ color: "#0f172a" }}>{j.accepter.name}</strong> — see full details on the Post tab.
                           </div>
                         )}
                         <button className="btn btn-outline btn-sm" onClick={() => setTab("post")}>Manage in Post tab →</button>
@@ -2446,15 +2453,15 @@ function avatarInitials(name) {
         {/* MESSAGES TAB */}
         {tab === "messages" && (
           <section aria-labelledby="messages-heading">
-            <h1 id="messages-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 16 }}>MESSAGES</h1>
+            <h1 id="messages-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 16 }}>MESSAGES</h1>
             {threadList.length === 0 ? (
               <div className="card" style={{ padding: 40, textAlign: "center" }}>
                 <div style={{ fontSize: 36, marginBottom: 12 }} aria-hidden="true">💬</div>
                 <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 6 }}>No conversations yet</div>
-                <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 16 }}>
+                <div style={{ color: "#475569", fontSize: 14, marginBottom: 16 }}>
                   {isContractor
                     ? "Customers who message you will show up here."
-                    : <>Start a chat by clicking <span style={{ color: "#f59e0b", fontWeight: 600 }}>Message</span> on a contractor in the Find tab.</>}
+                    : <>Start a chat by clicking <span style={{ color: "#b45309", fontWeight: 600 }}>Message</span> on a contractor in the Find tab.</>}
                 </div>
                 {!isContractor && (
                   <button className="btn btn-gold btn-sm" onClick={() => setTab("search")}>Browse Contractors</button>
@@ -2477,13 +2484,13 @@ function avatarInitials(name) {
                       className="chat-sidebar-btn"
                       role="listitem"
                       onClick={() => setActiveChat(t.key)}
-                      style={{ borderColor: activeChat === t.key ? "#f59e0b" : unread > 0 ? "#f59e0b" : "#334155" }}
+                      style={{ borderColor: activeChat === t.key ? "#f59e0b" : unread > 0 ? "#f59e0b" : "#e2e8f0" }}
                       aria-pressed={activeChat === t.key}
                       aria-label={`Chat with ${label.name}${unread ? `, ${unread} unread` : ""}`}
                     >
                       <Avatar initials={label.avatar} size={36} />
                       <div style={{ overflow: "hidden", flex: 1 }}>
-                        <div style={{ fontWeight: unread > 0 ? 700 : 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#f1f5f9" }}>{label.name}</div>
+                        <div style={{ fontWeight: unread > 0 ? 700 : 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#0f172a" }}>{label.name}</div>
                         <div style={{ fontSize: 11, color: "#64748b" }}>{label.sub}</div>
                       </div>
                       {unread > 0 && (
@@ -2497,7 +2504,7 @@ function avatarInitials(name) {
                 })}
               </div>
               <div className="card messages-chat" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                <div style={{ padding: "14px 18px", borderBottom: "1px solid #334155", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ padding: "14px 18px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 12 }}>
                   {activeThread && (() => {
                     const label = threadLabel(activeThread);
                     return (
@@ -2505,7 +2512,7 @@ function avatarInitials(name) {
                         <button
                           onClick={() => setActiveChat(null)}
                           aria-label="Back to conversations"
-                          style={{ background: "transparent", border: "none", color: "#f1f5f9", cursor: "pointer", fontSize: 20, padding: 4, lineHeight: 1 }}
+                          style={{ background: "transparent", border: "none", color: "#0f172a", cursor: "pointer", fontSize: 20, padding: 4, lineHeight: 1 }}
                         >
                           ←
                         </button>
@@ -2528,7 +2535,7 @@ function avatarInitials(name) {
                   aria-label="Message history"
                 >
                   {(!activeThread || activeThread.messages.length === 0) && (
-                    <div style={{ color: "#475569", textAlign: "center", marginTop: 60 }}>No messages yet. Say hello!</div>
+                    <div style={{ color: "#64748b", textAlign: "center", marginTop: 60 }}>No messages yet. Say hello!</div>
                   )}
                   {(activeThread?.messages || []).map((m, i) => {
                     const mine = isOwnMessage(activeThread, m);
@@ -2549,7 +2556,7 @@ function avatarInitials(name) {
                   })}
                   <div ref={messagesEndRef} />
                 </div>
-                <div style={{ padding: "12px 18px", borderTop: "1px solid #334155", display: "flex", gap: 10 }}>
+                <div style={{ padding: "12px 18px", borderTop: "1px solid #e2e8f0", display: "flex", gap: 10 }}>
                   <label htmlFor="msg-input" className="sr-only">Message</label>
                   <input
                     id="msg-input"
@@ -2578,12 +2585,12 @@ function avatarInitials(name) {
         {/* ADMIN TAB */}
         {tab === "admin" && isAdmin && (
           <section aria-labelledby="admin-heading">
-            <h1 id="admin-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>ADMIN</h1>
+            <h1 id="admin-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 4 }}>ADMIN</h1>
             <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Verify contractor documents and manage the admin team.</p>
 
             <AdminSection id="pending" title="Pending Verification" summary={`${contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).length} waiting`} defaultOpen>
             {() => contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).length === 0 ? (
-              <div style={{ color: "#475569", padding: 12 }}>Nothing waiting for review. 🎉</div>
+              <div style={{ color: "#64748b", padding: 12 }}>Nothing waiting for review. 🎉</div>
             ) : (
               <div style={{ display: "grid", gap: 12, marginBottom: 32 }}>
                 {contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).map(c => (
@@ -2592,7 +2599,7 @@ function avatarInitials(name) {
                       <Avatar initials={c.avatar} size={44} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700 }}>{c.name}</div>
-                        <div style={{ fontSize: 13, color: "#94a3b8" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
+                        <div style={{ fontSize: 13, color: "#475569" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
                       </div>
                     </div>
                     <div style={{ marginBottom: 12 }}>
@@ -2601,7 +2608,7 @@ function avatarInitials(name) {
                     {(() => {
                       const unreviewed = contractorCredentials(c, tradeReqMap).filter(i => i.status === "pending").length;
                       return unreviewed > 0 ? (
-                        <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
+                        <div style={{ fontSize: 12, color: "#b45309", marginBottom: 10 }}>
                           {unreviewed} document{unreviewed === 1 ? "" : "s"} not yet reviewed. Approving the profile doesn't mark documents verified.
                         </div>
                       ) : null;
@@ -2613,7 +2620,7 @@ function avatarInitials(name) {
                       {c.user_id && !adminList.some(a => a.user_id === c.user_id) && (
                         <button className="btn btn-outline btn-sm" onClick={() => openAdminChat(c.user_id)}>Message pro</button>
                       )}
-                      <button className="btn btn-outline btn-sm" onClick={() => openDenyModal(c)} style={{ borderColor: "#f87171", color: "#fca5a5" }}>
+                      <button className="btn btn-outline btn-sm" onClick={() => openDenyModal(c)} style={{ borderColor: "#f87171", color: "#b91c1c" }}>
                         Deny
                       </button>
                     </div>
@@ -2629,22 +2636,22 @@ function avatarInitials(name) {
                 {() => (
                 <div style={{ display: "grid", gap: 12 }}>
                   {contractors.filter(c => c.denied_at).map(c => (
-                    <details key={c.id} className="card" style={{ padding: 0, borderColor: "#7f1d1d" }}>
+                    <details key={c.id} className="card" style={{ padding: 0, borderColor: "#fecaca" }}>
                       <summary style={{ padding: 14, cursor: "pointer", listStyle: "none", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <Avatar initials={c.avatar} size={36} />
                           <div>
                             <div style={{ fontWeight: 600 }}>{c.name} <span className="badge unavail" style={{ marginLeft: 6 }}>Denied</span></div>
-                            <div style={{ fontSize: 12, color: "#94a3b8" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
+                            <div style={{ fontSize: 12, color: "#475569" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
                           </div>
                         </div>
                         <span style={{ fontSize: 12, color: "#64748b" }}>▾</span>
                       </summary>
                       <div style={{ padding: "0 14px 14px" }}>
-                        <div style={{ background: "#3b1515", border: "1px solid #7f1d1d", borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 13, color: "#fca5a5" }}>
+                        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 13, color: "#b91c1c" }}>
                           <div style={{ fontSize: 11, letterSpacing: 1, fontWeight: 700, marginBottom: 4 }}>REASON</div>
                           {c.denial_reason || "(no reason recorded)"}
-                          <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 6 }}>Denied {new Date(c.denied_at).toLocaleString()}</div>
+                          <div style={{ color: "#475569", fontSize: 12, marginTop: 6 }}>Denied {new Date(c.denied_at).toLocaleString()}</div>
                         </div>
                         <div style={{ marginBottom: 10 }}>
                           <CredentialReviewPanel contractor={c} reqMap={tradeReqMap} onSave={adminSaveCredentialReview} />
@@ -2674,7 +2681,7 @@ function avatarInitials(name) {
             {filter => {
               const shownPros = byStatus(contractors.filter(c => c.verified), filter, c => !c.deactivated_at);
               return shownPros.length === 0 ? (
-              <div style={{ color: "#475569", padding: 12 }}>None here.</div>
+              <div style={{ color: "#64748b", padding: 12 }}>None here.</div>
             ) : (
               <div style={{ display: "grid", gap: 12 }}>
                 {shownPros.map(c => (
@@ -2688,17 +2695,17 @@ function avatarInitials(name) {
                             <span className="badge avail" style={{ marginLeft: 6 }}>✓ Verified pro</span>
                             {c.deactivated_at && <span className="badge unavail" style={{ marginLeft: 4 }}>Off board</span>}
                           </div>
-                          <div style={{ fontSize: 12, color: "#94a3b8" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
+                          <div style={{ fontSize: 12, color: "#475569" }}>{contractorTrades(c).join(" · ")} · {c.location}</div>
                         </div>
                       </div>
                       <div style={{ fontSize: 12, color: "#64748b" }}>tap to expand ▾</div>
                     </summary>
                     <div style={{ padding: "0 16px 16px" }}>
-                      <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, fontSize: 13, lineHeight: 1.75, marginBottom: 12 }}>
+                      <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, fontSize: 13, lineHeight: 1.75, marginBottom: 12 }}>
                         <div><strong>Trades:</strong> {contractorTrades(c).join(", ")}</div>
                         <div><strong>Location:</strong> {c.location}</div>
                         {c.hourly != null && <div><strong>Hourly:</strong> ${c.hourly}/hr</div>}
-                        {c.website && <div><strong>Website:</strong> <a href={/^https?:\/\//i.test(c.website) ? c.website : `https://${c.website}`} target="_blank" rel="noreferrer" style={{ color: "#34d399", textDecoration: "underline" }}>{c.website.replace(/^https?:\/\//i, "")}</a></div>}
+                        {c.website && <div><strong>Website:</strong> <a href={/^https?:\/\//i.test(c.website) ? c.website : `https://${c.website}`} target="_blank" rel="noreferrer" style={{ color: "#047857", textDecoration: "underline" }}>{c.website.replace(/^https?:\/\//i, "")}</a></div>}
                         {c.bio && <div style={{ marginTop: 6 }}><strong>Bio:</strong> {c.bio}</div>}
                       </div>
                       <div style={{ marginBottom: 12 }}>
@@ -2713,22 +2720,22 @@ function avatarInitials(name) {
                         const acceptedJobs = jobs.filter(j => c.user_id && j.accepted_by === c.user_id && !j.deleted_at);
                         if (acceptedJobs.length === 0) return null;
                         return (
-                          <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 8 }}>
+                          <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: "#b45309", marginBottom: 8 }}>
                               JOBS ACCEPTED ({acceptedJobs.length})
                             </div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12, color: "#f1f5f9" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12, color: "#0f172a" }}>
                               {acceptedJobs.map(j => (
-                                <div key={j.id} style={{ borderLeft: "2px solid #334155", paddingLeft: 10 }}>
+                                <div key={j.id} style={{ borderLeft: "2px solid #e2e8f0", paddingLeft: 10 }}>
                                   <div>
                                     <strong>{j.title}</strong>
                                     {" · "}
-                                    <span style={{ color: j.status === "completed" ? "#34d399" : "#fbbf24" }}>{j.status}</span>
+                                    <span style={{ color: j.status === "completed" ? "#047857" : "#b45309" }}>{j.status}</span>
                                   </div>
-                                  <div style={{ color: "#94a3b8" }}>{j.trade} · {j.location}{j.budget != null ? ` · $${Number(j.budget).toLocaleString()}` : ""}</div>
+                                  <div style={{ color: "#475569" }}>{j.trade} · {j.location}{j.budget != null ? ` · $${Number(j.budget).toLocaleString()}` : ""}</div>
                                   {(j.homeowner_name || j.homeowner_email) && (
-                                    <div style={{ color: "#94a3b8" }}>
-                                      Posted by <strong style={{ color: "#f1f5f9" }}>{j.homeowner_name || j.homeowner_email}</strong>
+                                    <div style={{ color: "#475569" }}>
+                                      Posted by <strong style={{ color: "#0f172a" }}>{j.homeowner_name || j.homeowner_email}</strong>
                                       {j.homeowner_email && j.homeowner_name && ` · ${j.homeowner_email}`}
                                     </div>
                                   )}
@@ -2752,7 +2759,7 @@ function avatarInitials(name) {
                             Put back on board
                           </button>
                         ) : (
-                          <button className="btn btn-outline btn-sm" onClick={() => setContractorDeactivated(c, true)} style={{ borderColor: "#f87171", color: "#fca5a5" }}>
+                          <button className="btn btn-outline btn-sm" onClick={() => setContractorDeactivated(c, true)} style={{ borderColor: "#f87171", color: "#b91c1c" }}>
                             Take off board
                           </button>
                         )}
@@ -2801,13 +2808,13 @@ function avatarInitials(name) {
                     </select>
                   </div>
                   {shown.length === 0 ? (
-                    <div style={{ color: "#475569", padding: 12 }}>{adminUsers.length === 0 ? "No users yet." : "No users match."}</div>
+                    <div style={{ color: "#64748b", padding: 12 }}>{adminUsers.length === 0 ? "No users yet." : "No users match."}</div>
                   ) : (
                     <div style={{ display: "grid", gap: 6 }}>
                       {shown.map(u => {
                         const pro = u.contractor_id ? contractors.find(c => c.id === u.contractor_id) : null;
                         return (
-                          <div key={u.id} style={{ padding: "10px 12px", background: "#0f172a", borderRadius: 8, fontSize: 13 }}>
+                          <div key={u.id} style={{ padding: "10px 12px", background: "#f8fafc", borderRadius: 8, fontSize: 13 }}>
                             <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
                               <div style={{ fontWeight: 600, minWidth: 0 }}>
                                 {u.name || u.email}
@@ -2822,7 +2829,7 @@ function avatarInitials(name) {
                               </div>
                               <div style={{ color: "#64748b", fontSize: 12 }}>Joined {new Date(u.created_at).toLocaleDateString()}</div>
                             </div>
-                            <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 2, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <div style={{ color: "#475569", fontSize: 12, marginTop: 2, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               <span>
                               {u.name && <>{u.email} · </>}
                               {u.jobs_posted} job{u.jobs_posted === 1 ? "" : "s"} posted
@@ -2852,11 +2859,11 @@ function avatarInitials(name) {
             {filter => {
               const shownJobs = byStatus(jobs, filter, isActiveJob);
               return shownJobs.length === 0 ? (
-              <div style={{ color: "#475569", padding: 12 }}>{jobs.length === 0 ? "No jobs yet." : "None here."}</div>
+              <div style={{ color: "#64748b", padding: 12 }}>{jobs.length === 0 ? "No jobs yet." : "None here."}</div>
             ) : (
               <div style={{ display: "grid", gap: 8 }}>
                 {shownJobs.map(j => (
-                  <div key={j.id} className="card" style={{ padding: 12, fontSize: 13, opacity: j.deleted_at ? 0.7 : 1, borderColor: j.deleted_at ? "#7f1d1d" : undefined }}>
+                  <div key={j.id} className="card" style={{ padding: 12, fontSize: 13, opacity: j.deleted_at ? 0.7 : 1, borderColor: j.deleted_at ? "#fecaca" : undefined }}>
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
                       <div style={{ fontWeight: 600 }}>
                         {j.title}
@@ -2871,13 +2878,13 @@ function avatarInitials(name) {
                       </div>
                       <div style={{ color: "#64748b", fontSize: 12 }}>{new Date(j.created_at).toLocaleString()}</div>
                     </div>
-                    <div style={{ color: "#94a3b8", marginBottom: 6 }}>
+                    <div style={{ color: "#475569", marginBottom: 6 }}>
                       {j.location}
                       {j.budget != null && ` · $${Number(j.budget).toLocaleString()}`}
                     </div>
                     {(j.homeowner_name || j.homeowner_email) && (
-                      <div style={{ color: "#94a3b8", marginBottom: 6, fontSize: 12 }}>
-                        Posted by <strong style={{ color: "#f1f5f9" }}>{j.homeowner_name || j.homeowner_email}</strong>
+                      <div style={{ color: "#475569", marginBottom: 6, fontSize: 12 }}>
+                        Posted by <strong style={{ color: "#0f172a" }}>{j.homeowner_name || j.homeowner_email}</strong>
                         {j.homeowner_email && j.homeowner_name && ` · ${j.homeowner_email}`}
                         {j.homeowner_phone && ` · ${j.homeowner_phone}`}
                       </div>
@@ -2885,8 +2892,8 @@ function avatarInitials(name) {
                     {j.accepted_by && (() => {
                       const acc = contractors.find(c => c.user_id === j.accepted_by);
                       return acc ? (
-                        <div style={{ color: "#94a3b8", marginBottom: 6, fontSize: 12 }}>
-                          Accepted by <strong style={{ color: "#f1f5f9" }}>{acc.name}</strong>
+                        <div style={{ color: "#475569", marginBottom: 6, fontSize: 12 }}>
+                          Accepted by <strong style={{ color: "#0f172a" }}>{acc.name}</strong>
                         </div>
                       ) : null;
                     })()}
@@ -2900,7 +2907,7 @@ function avatarInitials(name) {
                       {j.deleted_at ? (
                         <button className="btn btn-gold btn-sm" onClick={() => adminRestoreJob(j)}>Restore</button>
                       ) : (
-                        <button className="btn btn-outline btn-sm" onClick={() => adminRemoveJob(j)} style={{ borderColor: "#f87171", color: "#fca5a5" }}>Remove from board</button>
+                        <button className="btn btn-outline btn-sm" onClick={() => adminRemoveJob(j)} style={{ borderColor: "#f87171", color: "#b91c1c" }}>Remove from board</button>
                       )}
                     </div>
                   </div>
@@ -2921,7 +2928,7 @@ function avatarInitials(name) {
             {filter => {
               const shownTickets = byStatus(supportTickets, filter, t => t.status === "open");
               return shownTickets.length === 0 ? (
-              <div style={{ color: "#475569", padding: 12 }}>{supportTickets.length === 0 ? "No tickets yet." : "None here."}</div>
+              <div style={{ color: "#64748b", padding: 12 }}>{supportTickets.length === 0 ? "No tickets yet." : "None here."}</div>
             ) : (
               <div style={{ display: "grid", gap: 8 }}>
                 {shownTickets.map(t => (
@@ -2930,14 +2937,14 @@ function avatarInitials(name) {
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {t.subject}
-                          {t.status === "open" ? <span className="badge" style={{ marginLeft: 8, background: "#7c2d12", color: "#fed7aa" }}>OPEN</span> : <span className="badge avail" style={{ marginLeft: 8 }}>closed</span>}
+                          {t.status === "open" ? <span className="badge" style={{ marginLeft: 8, background: "#ffedd5", color: "#9a3412" }}>OPEN</span> : <span className="badge avail" style={{ marginLeft: 8 }}>closed</span>}
                         </div>
-                        <div style={{ fontSize: 12, color: "#94a3b8" }}>{t.email} · {new Date(t.created_at).toLocaleString()}</div>
+                        <div style={{ fontSize: 12, color: "#475569" }}>{t.email} · {new Date(t.created_at).toLocaleString()}</div>
                       </div>
                       <span style={{ fontSize: 12, color: "#64748b" }}>▾</span>
                     </summary>
                     <div style={{ padding: "0 14px 14px" }}>
-                      <div style={{ background: "#0f172a", borderRadius: 8, padding: 12, fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 10, color: "#f1f5f9" }}>
+                      <div style={{ background: "#f8fafc", borderRadius: 8, padding: 12, fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 10, color: "#0f172a" }}>
                         {t.body}
                       </div>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -2958,7 +2965,7 @@ function avatarInitials(name) {
 
             <AdminSection id="releases" title="Job Releases" summary={`${jobReleases.length} total`}>
             {() => jobReleases.length === 0 ? (
-              <div style={{ color: "#475569", padding: 12 }}>No releases yet.</div>
+              <div style={{ color: "#64748b", padding: 12 }}>No releases yet.</div>
             ) : (
               <div style={{ display: "grid", gap: 8 }}>
                 {jobReleases.map(r => {
@@ -2968,24 +2975,24 @@ function avatarInitials(name) {
                     <div key={r.id} className="card" style={{ padding: 14, fontSize: 13 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
                         <div style={{ fontWeight: 600 }}>
-                          {contractor?.name || "Contractor"} <span style={{ color: "#94a3b8", fontWeight: 400 }}>released</span>
+                          {contractor?.name || "Contractor"} <span style={{ color: "#475569", fontWeight: 400 }}>released</span>
                         </div>
                         <div style={{ color: "#64748b", fontSize: 12 }}>{new Date(r.created_at).toLocaleString()}</div>
                       </div>
-                      <div style={{ background: "#0f172a", borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 12, lineHeight: 1.6 }}>
-                        <div style={{ color: "#94a3b8", fontWeight: 700, letterSpacing: 1, fontSize: 10, marginBottom: 4 }}>JOB</div>
-                        <div style={{ color: "#f1f5f9", fontWeight: 600 }}>{job?.title || "(job removed)"}</div>
-                        {job && <div style={{ color: "#94a3b8" }}>{job.trade} · {job.location}{job.budget != null ? ` · $${Number(job.budget).toLocaleString()}` : ""}</div>}
+                      <div style={{ background: "#f8fafc", borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 12, lineHeight: 1.6 }}>
+                        <div style={{ color: "#475569", fontWeight: 700, letterSpacing: 1, fontSize: 10, marginBottom: 4 }}>JOB</div>
+                        <div style={{ color: "#0f172a", fontWeight: 600 }}>{job?.title || "(job removed)"}</div>
+                        {job && <div style={{ color: "#475569" }}>{job.trade} · {job.location}{job.budget != null ? ` · $${Number(job.budget).toLocaleString()}` : ""}</div>}
                         {job && (job.homeowner_name || job.homeowner_email) && (
-                          <div style={{ color: "#94a3b8", marginTop: 4 }}>
-                            Posted by: <strong style={{ color: "#f1f5f9" }}>{job.homeowner_name || job.homeowner_email}</strong>
+                          <div style={{ color: "#475569", marginTop: 4 }}>
+                            Posted by: <strong style={{ color: "#0f172a" }}>{job.homeowner_name || job.homeowner_email}</strong>
                             {job.homeowner_email && job.homeowner_name && <> · {job.homeowner_email}</>}
                             {job.homeowner_phone && <> · {job.homeowner_phone}</>}
                           </div>
                         )}
                       </div>
-                      <div style={{ color: "#f87171", marginBottom: r.notes ? 6 : 0 }}><strong>Reason:</strong> {r.reason}</div>
-                      {r.notes && <div style={{ color: "#94a3b8" }}>Notes: {r.notes}</div>}
+                      <div style={{ color: "#dc2626", marginBottom: r.notes ? 6 : 0 }}><strong>Reason:</strong> {r.reason}</div>
+                      {r.notes && <div style={{ color: "#475569" }}>Notes: {r.notes}</div>}
                     </div>
                   );
                 })}
@@ -3030,7 +3037,7 @@ function avatarInitials(name) {
             </form>
             <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
               {adminList.map(a => (
-                <div key={a.user_id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#0f172a", borderRadius: 8, fontSize: 13 }}>
+                <div key={a.user_id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8, fontSize: 13 }}>
                   <span>🛡 {a.email}</span>
                   {a.user_id !== user.id && (
                     <button className="btn btn-outline btn-sm" onClick={() => adminRemoveAdmin(a)}>Remove</button>
@@ -3038,7 +3045,7 @@ function avatarInitials(name) {
                 </div>
               ))}
               {adminInvites.map(i => (
-                <div key={i.email} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#0f172a", borderRadius: 8, fontSize: 13, color: "#94a3b8" }}>
+                <div key={i.email} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8, fontSize: 13, color: "#475569" }}>
                   <span>⏳ {i.email} (pending — becomes admin on next sign-in)</span>
                   <button className="btn btn-outline btn-sm" onClick={() => adminRevokeInvite(i.email)}>Revoke</button>
                 </div>
@@ -3052,7 +3059,7 @@ function avatarInitials(name) {
         {/* REVIEWS TAB */}
         {tab === "reviews" && (
           <section aria-labelledby="reviews-heading">
-            <h1 id="reviews-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 16 }}>REVIEWS</h1>
+            <h1 id="reviews-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309", marginBottom: 16 }}>REVIEWS</h1>
             <div style={{ display: "grid", gap: 20 }}>
               {contractors.map(c => (
                 <div key={c.id} className="card" style={{ padding: 20 }}>
@@ -3064,7 +3071,7 @@ function avatarInitials(name) {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <Stars rating={c.rating} />
-                      <span style={{ color: "#f59e0b", fontWeight: 700 }}>{c.rating}</span>
+                      <span style={{ color: "#b45309", fontWeight: 700 }}>{c.rating}</span>
                     </div>
                     {(() => {
                       const job = reviewableJobFor(c.id);
@@ -3090,11 +3097,11 @@ function avatarInitials(name) {
                   {reviewTarget?.contractorId === c.id && (
                     <form
                       id={`review-form-${c.id}`}
-                      style={{ background: "#0f172a", borderRadius: 12, padding: 16, marginBottom: 14 }}
+                      style={{ background: "#f8fafc", borderRadius: 12, padding: 16, marginBottom: 14 }}
                       onSubmit={e => { e.preventDefault(); submitReview(); }}
                     >
                       <fieldset style={{ border: "none", padding: 0, margin: "0 0 10px 0" }}>
-                        <legend style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Your Rating</legend>
+                        <legend style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Your Rating</legend>
                         <div style={{ display: "flex", gap: 4 }}>
                           {[1, 2, 3, 4, 5].map(s => (
                             <button
@@ -3104,7 +3111,7 @@ function avatarInitials(name) {
                               onClick={() => setReviewInput(r => ({ ...r, stars: s }))}
                               aria-label={`${s} star${s !== 1 ? "s" : ""}`}
                               aria-pressed={s <= reviewInput.stars}
-                              style={{ color: s <= reviewInput.stars ? "#f59e0b" : "#334155" }}
+                              style={{ color: s <= reviewInput.stars ? "#b45309" : "#334155" }}
                             >
                               ★
                             </button>
@@ -3126,20 +3133,20 @@ function avatarInitials(name) {
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }} role="list" aria-label={`Reviews for ${c.name}`}>
                     {(reviews[c.id] || []).map((r, i) => (
-                      <div key={i} style={{ background: "#0f172a", borderRadius: 10, padding: 14 }} role="listitem">
+                      <div key={i} style={{ background: "#f8fafc", borderRadius: 10, padding: 14 }} role="listitem">
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 4 }}>
                           <span style={{ fontWeight: 600, fontSize: 13 }}>{r.author}</span>
                           <span aria-label={`${r.stars} stars`}>
                             {[...Array(r.stars)].map((_, j) => (
-                              <span key={j} style={{ color: "#f59e0b" }} aria-hidden="true">★</span>
+                              <span key={j} style={{ color: "#b45309" }} aria-hidden="true">★</span>
                             ))}
                           </span>
                         </div>
-                        <p style={{ color: "#94a3b8", fontSize: 13 }}>{r.text}</p>
+                        <p style={{ color: "#475569", fontSize: 13 }}>{r.text}</p>
                       </div>
                     ))}
                     {!(reviews[c.id] || []).length && (
-                      <div style={{ color: "#475569", fontSize: 13 }}>No reviews yet. Be the first!</div>
+                      <div style={{ color: "#64748b", fontSize: 13 }}>No reviews yet. Be the first!</div>
                     )}
                   </div>
                 </div>
@@ -3168,7 +3175,7 @@ function avatarInitials(name) {
                 <div style={{ color: "#64748b", fontSize: 14 }}>{contractorTrades(modal).join(" · ")} · {modal.location}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
                   <Stars rating={modal.rating} />
-                  <span style={{ color: "#94a3b8", fontSize: 13 }}>{modal.rating} ({modal.reviews_count} reviews)</span>
+                  <span style={{ color: "#475569", fontSize: 13 }}>{modal.rating} ({modal.reviews_count} reviews)</span>
                 </div>
               </div>
               <button
@@ -3180,14 +3187,14 @@ function avatarInitials(name) {
                 ✕
               </button>
             </div>
-            <p style={{ color: "#94a3b8", marginBottom: 16, lineHeight: 1.6 }}>{modal.bio}</p>
+            <p style={{ color: "#475569", marginBottom: 16, lineHeight: 1.6 }}>{modal.bio}</p>
             {modal.website && (
               <div style={{ marginBottom: 16 }}>
                 <a
                   href={/^https?:\/\//i.test(modal.website) ? modal.website : `https://${modal.website}`}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ color: "#f59e0b", textDecoration: "underline", fontSize: 14, fontWeight: 600 }}
+                  style={{ color: "#b45309", textDecoration: "underline", fontSize: 14, fontWeight: 600 }}
                 >
                   {modal.website.replace(/^https?:\/\//i, "")}
                 </a>
@@ -3196,13 +3203,13 @@ function avatarInitials(name) {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
               {modal.tags.map(t => <span key={t} className="badge">{t}</span>)}
             </div>
-            <div style={{ background: "#0f172a", borderRadius: 12, padding: 16, marginBottom: 20, display: "flex", justifyContent: "space-around" }}>
+            <div style={{ background: "#f8fafc", borderRadius: 12, padding: 16, marginBottom: 20, display: "flex", justifyContent: "space-around" }}>
               <div style={{ textAlign: "center" }}>
-                <div style={{ color: "#f59e0b", fontWeight: 700, fontSize: 22 }}>${modal.hourly}</div>
+                <div style={{ color: "#b45309", fontWeight: 700, fontSize: 22 }}>${modal.hourly}</div>
                 <div style={{ color: "#64748b", fontSize: 12 }}>Per Hour</div>
               </div>
               <div style={{ textAlign: "center" }}>
-                <div style={{ color: "#34d399", fontWeight: 700, fontSize: 22 }}>{modal.reviews_count}</div>
+                <div style={{ color: "#047857", fontWeight: 700, fontSize: 22 }}>{modal.reviews_count}</div>
                 <div style={{ color: "#64748b", fontSize: 12 }}>Reviews</div>
               </div>
               <div style={{ textAlign: "center" }}>
@@ -3214,39 +3221,39 @@ function avatarInitials(name) {
             </div>
 
             {isContractorVerified(modal) ? (
-              <div style={{ background: "#064e3b", border: "1px solid #047857", borderRadius: 12, padding: 14, marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#34d399", marginBottom: 6 }}>
+              <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 12, padding: 14, marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#047857", marginBottom: 6 }}>
                   ✓ VERIFIED PRO
                 </div>
-                <div style={{ fontSize: 13, color: "#d1fae5", lineHeight: 1.5 }}>{VERIFIED_PRO_MEANING}</div>
+                <div style={{ fontSize: 13, color: "#065f46", lineHeight: 1.5 }}>{VERIFIED_PRO_MEANING}</div>
               </div>
             ) : (
-              <div style={{ background: "#3b1515", border: "1px solid #7f1d1d", borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 13, color: "#fca5a5" }}>
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 13, color: "#b91c1c" }}>
                 This profile has not been approved yet.
               </div>
             )}
-            <div style={{ background: "#0f172a", borderRadius: 12, padding: 14, marginBottom: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 10 }}>VERIFIED BY SUBCONTRACTOR PROS</div>
+            <div style={{ background: "#f8fafc", borderRadius: 12, padding: 14, marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#b45309", marginBottom: 10 }}>VERIFIED BY SUBCONTRACTOR PROS</div>
               <VerifiedCredentialsSummary contractor={modal} />
             </div>
 
             {(reviews[modal.id] || []).length > 0 && (
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#f59e0b", marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: "#b45309", marginBottom: 10 }}>
                   REVIEWS ({(reviews[modal.id] || []).length})
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 260, overflowY: "auto" }}>
                   {(reviews[modal.id] || []).slice().reverse().map((r, i) => (
-                    <div key={i} style={{ background: "#0f172a", borderRadius: 10, padding: 12 }}>
+                    <div key={i} style={{ background: "#f8fafc", borderRadius: 10, padding: 12 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 4 }}>
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{r.author}</span>
                         <span aria-label={`${r.stars} stars`}>
                           {[...Array(r.stars)].map((_, j) => (
-                            <span key={j} style={{ color: "#f59e0b" }} aria-hidden="true">★</span>
+                            <span key={j} style={{ color: "#b45309" }} aria-hidden="true">★</span>
                           ))}
                         </span>
                       </div>
-                      <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.5 }}>{r.text}</p>
+                      <p style={{ color: "#475569", fontSize: 13, lineHeight: 1.5 }}>{r.text}</p>
                     </div>
                   ))}
                 </div>
@@ -3294,14 +3301,14 @@ function avatarInitials(name) {
             aria-labelledby="profile-modal-title"
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 id="profile-modal-title" style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>
+              <h2 id="profile-modal-title" style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309" }}>
                 {myContractor ? "EDIT PROFILE" : "CREATE YOUR PROFILE"}
               </h2>
               <button className="btn btn-outline btn-sm" onClick={() => setProfileModal(false)} aria-label="Close">✕</button>
             </div>
             <form onSubmit={saveProfile} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label htmlFor="pf-name" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Business / Your Name *</label>
+                <label htmlFor="pf-name" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Business / Your Name *</label>
                 <input
                   id="pf-name"
                   required
@@ -3319,7 +3326,7 @@ function avatarInitials(name) {
                 label={<>Services * <span style={{ color: "#64748b" }}>(your first pick is your primary service)</span></>}
               />
               <div>
-                <label htmlFor="pf-hourly" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Hourly Rate ($)</label>
+                <label htmlFor="pf-hourly" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Hourly Rate ($)</label>
                 <input
                   id="pf-hourly"
                   type="number"
@@ -3330,7 +3337,7 @@ function avatarInitials(name) {
                 />
               </div>
               <div>
-                <label htmlFor="pf-location" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Location *</label>
+                <label htmlFor="pf-location" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Location *</label>
                 <CityStateInput
                   id="pf-location"
                   required
@@ -3339,7 +3346,7 @@ function avatarInitials(name) {
                 />
               </div>
               <div>
-                <label htmlFor="pf-tags" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Specialties (comma-separated)</label>
+                <label htmlFor="pf-tags" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Specialties (comma-separated)</label>
                 <input
                   id="pf-tags"
                   placeholder="e.g. Move-out cleans, Commercial kitchens, New builds"
@@ -3348,7 +3355,7 @@ function avatarInitials(name) {
                 />
               </div>
               <div>
-                <label htmlFor="pf-bio" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Bio</label>
+                <label htmlFor="pf-bio" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Bio</label>
                 <textarea
                   id="pf-bio"
                   rows={3}
@@ -3358,7 +3365,7 @@ function avatarInitials(name) {
                 />
               </div>
               <div>
-                <label htmlFor="pf-website" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Business Website (optional)</label>
+                <label htmlFor="pf-website" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Business Website (optional)</label>
                 <input
                   id="pf-website"
                   type="text"
@@ -3372,33 +3379,33 @@ function avatarInitials(name) {
               {(() => {
                 const req = requirementsFor(profileForm.trades);
                 return (
-                  <div style={{ borderTop: "1px solid #334155", paddingTop: 16, marginTop: 4 }}>
-                    <div style={{ fontSize: 12, color: "#f59e0b", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
-                      REQUIRED DOCUMENTS <span style={{ color: "#f87171" }}>*</span>
+                  <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 16, marginTop: 4 }}>
+                    <div style={{ fontSize: 12, color: "#b45309", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
+                      REQUIRED DOCUMENTS <span style={{ color: "#dc2626" }}>*</span>
                     </div>
                     <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
                       What SubcontractorPros asks for, based on the services you picked. Files are only shared with a customer once you accept their job.
                     </div>
                     {myContractor && (
-                      <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "#cbd5e1", marginBottom: 8 }}>Review status of your documents</div>
+                      <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 8 }}>Review status of your documents</div>
                         <CredentialList contractor={myContractor} reqMap={tradeReqMap} showNotes />
                       </div>
                     )}
                     {(() => {
                       const noUpload = profileForm.trades.filter(t => !tradeReqMap[t]?.tradeLicense);
                       return noUpload.length > 0 ? (
-                        <div style={{ fontSize: 12, color: "#94a3b8", background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14, lineHeight: 1.5 }}>
+                        <div style={{ fontSize: 12, color: "#475569", background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 14, lineHeight: 1.5 }}>
                           We don't ask for a trade license upload for {noUpload.join(", ")}. {REQUIREMENTS_FALLBACK} You're responsible for holding any license your work requires.
                         </div>
                       ) : null;
                     })()}
 
                     {/* Business License — always required */}
-                    <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}>1. Business License</div>
+                    <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>1. Business License</div>
                       <div>
-                        <label htmlFor="pf-bl-num" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Business License Number *</label>
+                        <label htmlFor="pf-bl-num" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Business License Number *</label>
                         <input
                           id="pf-bl-num"
                           required
@@ -3408,7 +3415,7 @@ function avatarInitials(name) {
                         />
                       </div>
                       <div style={{ marginTop: 10 }}>
-                        <label htmlFor="pf-bl-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                        <label htmlFor="pf-bl-file" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>
                           Business License Document {profileForm.business_license_path ? "" : "*"}
                         </label>
                         <input
@@ -3418,7 +3425,7 @@ function avatarInitials(name) {
                           onChange={e => setProfileForm(f => ({ ...f, business_license_file: e.target.files?.[0] || null }))}
                         />
                         {profileForm.business_license_path && !profileForm.business_license_file && (
-                          <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
+                          <div style={{ fontSize: 12, color: "#047857", marginTop: 6 }}>
                             ✓ On file — <DocLink path={profileForm.business_license_path}>view current</DocLink>
                           </div>
                         )}
@@ -3426,25 +3433,25 @@ function avatarInitials(name) {
                     </div>
 
                     {/* General Liability Insurance — always required */}
-                    <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 8 }}>2. General Liability Insurance</div>
+                    <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>2. General Liability Insurance</div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="job-grid">
                         <div>
-                          <label htmlFor="pf-ins-carrier" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Carrier *</label>
+                          <label htmlFor="pf-ins-carrier" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Carrier *</label>
                           <input id="pf-ins-carrier" required placeholder="e.g. State Farm" value={profileForm.insurance_carrier} onChange={e => setProfileForm(f => ({ ...f, insurance_carrier: e.target.value }))} />
                         </div>
                         <div>
-                          <label htmlFor="pf-ins-exp" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Expires *</label>
+                          <label htmlFor="pf-ins-exp" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Expires *</label>
                           <input id="pf-ins-exp" type="date" required value={profileForm.insurance_expires_at} onChange={e => setProfileForm(f => ({ ...f, insurance_expires_at: e.target.value }))} />
                         </div>
                       </div>
                       <div style={{ marginTop: 10 }}>
-                        <label htmlFor="pf-ins-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                        <label htmlFor="pf-ins-file" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>
                           Certificate of Insurance {profileForm.insurance_path ? "" : "*"}
                         </label>
                         <input id="pf-ins-file" type="file" accept="application/pdf,image/*" onChange={e => setProfileForm(f => ({ ...f, insurance_file: e.target.files?.[0] || null }))} />
                         {profileForm.insurance_path && !profileForm.insurance_file && (
-                          <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
+                          <div style={{ fontSize: 12, color: "#047857", marginTop: 6 }}>
                             ✓ On file — <DocLink path={profileForm.insurance_path}>view current</DocLink>
                           </div>
                         )}
@@ -3460,15 +3467,15 @@ function avatarInitials(name) {
                         trade_licenses: { ...f.trade_licenses, [t]: { ...entry, type: licType, ...patch } },
                       }));
                       return (
-                        <div key={t} style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 14, border: "1px solid #f59e0b" }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>
-                            {i + 3}. {licType} <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 12 }}>(for {t})</span>
+                        <div key={t} style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 14, border: "1px solid #f59e0b" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 4 }}>
+                            {i + 3}. {licType} <span style={{ color: "#475569", fontWeight: 400, fontSize: 12 }}>(for {t})</span>
                           </div>
-                          <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
+                          <div style={{ fontSize: 12, color: "#b45309", marginBottom: 10 }}>
                             SubcontractorPros asks {t} providers for this document.
                           </div>
                           <div>
-                            <label htmlFor={`pf-tl-num-${t}`} style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>License Number *</label>
+                            <label htmlFor={`pf-tl-num-${t}`} style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>License Number *</label>
                             <input
                               id={`pf-tl-num-${t}`}
                               required
@@ -3478,7 +3485,7 @@ function avatarInitials(name) {
                             />
                           </div>
                           <div style={{ marginTop: 10 }}>
-                            <label htmlFor={`pf-tl-file-${t}`} style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                            <label htmlFor={`pf-tl-file-${t}`} style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>
                               License Document {entry.path ? "" : "*"}
                             </label>
                             <input
@@ -3488,7 +3495,7 @@ function avatarInitials(name) {
                               onChange={e => updateEntry({ file: e.target.files?.[0] || null })}
                             />
                             {entry.path && !entry.file && (
-                              <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
+                              <div style={{ fontSize: 12, color: "#047857", marginTop: 6 }}>
                                 ✓ On file — <DocLink path={entry.path}>view current</DocLink>
                               </div>
                             )}
@@ -3502,22 +3509,22 @@ function avatarInitials(name) {
                       const licenseCount = profileForm.trades.filter(t => tradeReqMap[t]?.tradeLicense).length;
                       const bondNumber = 3 + licenseCount;
                       return (
-                      <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 4, border: "1px solid #f59e0b" }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>{bondNumber}. Surety Bond</div>
-                        <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>
+                      <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 4, border: "1px solid #f59e0b" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 4 }}>{bondNumber}. Surety Bond</div>
+                        <div style={{ fontSize: 12, color: "#b45309", marginBottom: 10 }}>
                           SubcontractorPros asks for a bond for: {profileForm.trades.filter(t => tradeReqMap[t]?.bonded).join(", ")}.
                         </div>
                         <div>
-                          <label htmlFor="pf-bond-amt" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Bond Amount ($)</label>
+                          <label htmlFor="pf-bond-amt" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Bond Amount ($)</label>
                           <input id="pf-bond-amt" type="number" min="0" placeholder="e.g. 10000" value={profileForm.bond_amount} onChange={e => setProfileForm(f => ({ ...f, bond_amount: e.target.value }))} />
                         </div>
                         <div style={{ marginTop: 10 }}>
-                          <label htmlFor="pf-bond-file" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>
+                          <label htmlFor="pf-bond-file" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>
                             Bond Certificate {profileForm.bond_path ? "" : "*"}
                           </label>
                           <input id="pf-bond-file" type="file" accept="application/pdf,image/*" onChange={e => setProfileForm(f => ({ ...f, bond_file: e.target.files?.[0] || null }))} />
                           {profileForm.bond_path && !profileForm.bond_file && (
-                            <div style={{ fontSize: 12, color: "#34d399", marginTop: 6 }}>
+                            <div style={{ fontSize: 12, color: "#047857", marginTop: 6 }}>
                               ✓ On file — <DocLink path={profileForm.bond_path}>view current</DocLink>
                             </div>
                           )}
@@ -3530,7 +3537,7 @@ function avatarInitials(name) {
               })()}
 
               {profileError && (
-                <div style={{ color: "#f87171", fontSize: 13, background: "#3b1515", padding: "8px 12px", borderRadius: 8 }} role="alert">
+                <div style={{ color: "#dc2626", fontSize: 13, background: "#fef2f2", padding: "8px 12px", borderRadius: 8 }} role="alert">
                   {profileError}
                 </div>
               )}
@@ -3542,10 +3549,10 @@ function avatarInitials(name) {
               const isDeactivated = !!myContractor.deactivated_at;
               const selfDeactivated = isDeactivated && myContractor.deactivated_by === myContractor.user_id;
               return (
-                <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #334155" }}>
+                <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e2e8f0" }}>
                   {isDeactivated && !selfDeactivated ? (
                     <>
-                      <div style={{ background: "#3b1515", border: "1px solid #7f1d1d", borderRadius: 8, padding: 12, fontSize: 13, color: "#fca5a5", textAlign: "center", marginBottom: 10 }}>
+                      <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 12, fontSize: 13, color: "#b91c1c", textAlign: "center", marginBottom: 10 }}>
                         Your profile was taken off the board by an admin. Only an admin can put it back on.
                       </div>
                       <button
@@ -3576,7 +3583,7 @@ function avatarInitials(name) {
                           setProfileModal(false);
                         }
                       }}
-                      style={{ width: "100%", borderColor: "#f87171", color: "#fca5a5" }}
+                      style={{ width: "100%", borderColor: "#f87171", color: "#b91c1c" }}
                     >
                       Take my profile off the board
                     </button>
@@ -3603,14 +3610,14 @@ function avatarInitials(name) {
             style={{ maxWidth: 400 }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 id="auth-modal-title" style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>
+              <h2 id="auth-modal-title" style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309" }}>
                 {authMode === "signin" ? "SIGN IN" : "CREATE ACCOUNT"}
               </h2>
               <button className="btn btn-outline btn-sm" onClick={() => setAuthModal(false)} aria-label="Close">✕</button>
             </div>
             <form onSubmit={submitAuth} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {authMode === "signup" && (
-                <div style={{ fontSize: 13, color: "#94a3b8", background: "#0f172a", border: "1px solid #334155", borderRadius: 10, padding: "10px 12px", lineHeight: 1.5 }}>
+                <div style={{ fontSize: 13, color: "#475569", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 12px", lineHeight: 1.5 }}>
                   {authIntent === "customer"
                     ? "Create your free account to post jobs and hire verified pros. If you're also a pro, you can add a contractor profile anytime from your profile menu."
                     : authIntent === "pro"
@@ -3619,7 +3626,7 @@ function avatarInitials(name) {
                 </div>
               )}
               <div>
-                <label htmlFor="auth-email" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Email</label>
+                <label htmlFor="auth-email" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Email</label>
                 <input
                   id="auth-email"
                   type="email"
@@ -3630,7 +3637,7 @@ function avatarInitials(name) {
                 />
               </div>
               <div>
-                <label htmlFor="auth-password" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Password</label>
+                <label htmlFor="auth-password" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Password</label>
                 <div style={{ position: "relative" }}>
                   <input
                     id="auth-password"
@@ -3649,7 +3656,7 @@ function avatarInitials(name) {
                     style={{
                       position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
                       background: "transparent", border: "none", cursor: "pointer",
-                      color: "#94a3b8", fontSize: 18, padding: 6, lineHeight: 1,
+                      color: "#475569", fontSize: 18, padding: 6, lineHeight: 1,
                     }}
                   >
                     {showPassword ? "🙈" : "👁"}
@@ -3657,7 +3664,7 @@ function avatarInitials(name) {
                 </div>
               </div>
               {authError && (
-                <div style={{ color: "#f87171", fontSize: 13, background: "#3b1515", padding: "8px 12px", borderRadius: 8 }} role="alert">
+                <div style={{ color: "#dc2626", fontSize: 13, background: "#fef2f2", padding: "8px 12px", borderRadius: 8 }} role="alert">
                   {authError}
                 </div>
               )}
@@ -3667,7 +3674,7 @@ function avatarInitials(name) {
               <button
                 type="button"
                 onClick={() => { setAuthMode(authMode === "signin" ? "signup" : "signin"); setAuthError(null); }}
-                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 13, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}
+                style={{ background: "none", border: "none", color: "#475569", fontSize: 13, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}
               >
                 {authMode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
               </button>
@@ -3681,17 +3688,17 @@ function avatarInitials(name) {
         <div className="modal-bg" onClick={() => setCustomerProfileModal(false)} role="presentation">
           <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" style={{ maxWidth: 440 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>MY PROFILE</h2>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309" }}>MY PROFILE</h2>
               <button className="btn btn-outline btn-sm" onClick={() => setCustomerProfileModal(false)} aria-label="Close">✕</button>
             </div>
             <form onSubmit={saveCustomerProfile} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label htmlFor="cp-email" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Email</label>
+                <label htmlFor="cp-email" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Email</label>
                 <input id="cp-email" value={user?.email || ""} disabled style={{ opacity: 0.7 }} />
                 <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Email is managed from your account and used on every job you post.</div>
               </div>
               <div>
-                <label htmlFor="cp-name" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Your Name</label>
+                <label htmlFor="cp-name" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Your Name</label>
                 <input
                   id="cp-name"
                   placeholder="First & last name"
@@ -3700,7 +3707,7 @@ function avatarInitials(name) {
                 />
               </div>
               <div>
-                <label htmlFor="cp-phone" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Phone</label>
+                <label htmlFor="cp-phone" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Phone</label>
                 <input
                   id="cp-phone"
                   type="tel"
@@ -3723,30 +3730,30 @@ function avatarInitials(name) {
         <div className="modal-bg" onClick={() => setJobEditModal(null)} role="presentation">
           <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>EDIT JOB</h2>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309" }}>EDIT JOB</h2>
               <button className="btn btn-outline btn-sm" onClick={() => setJobEditModal(null)} aria-label="Close">✕</button>
             </div>
             <form onSubmit={saveJobEdit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label htmlFor="je-title" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Job Title *</label>
+                <label htmlFor="je-title" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Job Title *</label>
                 <input id="je-title" required value={jobEditModal.title} onChange={e => setJobEditModal(j => ({ ...j, title: e.target.value }))} />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="job-grid">
                 <div>
-                  <label htmlFor="je-trade" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Service</label>
+                  <label htmlFor="je-trade" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Service</label>
                   <ServiceSelect id="je-trade" catalog={catalog} value={jobEditModal.trade || ""} onChange={v => setJobEditModal(j => ({ ...j, trade: v }))} />
                 </div>
                 <div>
-                  <label htmlFor="je-budget" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Budget ($)</label>
+                  <label htmlFor="je-budget" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Budget ($)</label>
                   <input id="je-budget" type="number" min="0" value={jobEditModal.budget ?? ""} onChange={e => setJobEditModal(j => ({ ...j, budget: e.target.value }))} />
                 </div>
               </div>
               <div>
-                <label htmlFor="je-location" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Location *</label>
+                <label htmlFor="je-location" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Location *</label>
                 <CityStateInput id="je-location" required value={jobEditModal.location} onChange={v => setJobEditModal(j => ({ ...j, location: v }))} />
               </div>
               <div>
-                <label htmlFor="je-desc" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Description</label>
+                <label htmlFor="je-desc" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Description</label>
                 <textarea id="je-desc" rows={4} value={jobEditModal.description ?? ""} onChange={e => setJobEditModal(j => ({ ...j, description: e.target.value }))} />
               </div>
               <button type="submit" className="btn btn-gold" disabled={jobEditBusy}>
@@ -3762,20 +3769,20 @@ function avatarInitials(name) {
         <div className="modal-bg" onClick={() => setReleaseModal(null)} role="presentation">
           <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>RELEASE CONTRACTOR</h2>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309" }}>RELEASE CONTRACTOR</h2>
               <button className="btn btn-outline btn-sm" onClick={() => setReleaseModal(null)} aria-label="Close">✕</button>
             </div>
-            <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13 }}>
-              <div style={{ color: "#94a3b8" }}>Releasing:</div>
+            <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13 }}>
+              <div style={{ color: "#475569" }}>Releasing:</div>
               <div style={{ fontWeight: 600 }}>{releaseModal.accepter?.name || "Contractor"}</div>
-              <div style={{ color: "#94a3b8" }}>on "{releaseModal.title}"</div>
+              <div style={{ color: "#475569" }}>on "{releaseModal.title}"</div>
             </div>
-            <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14 }}>
+            <p style={{ fontSize: 13, color: "#475569", marginBottom: 14 }}>
               The job will go back to Open so other contractors can accept it. The reason you pick is shared with our admin team so we can track contractor behavior.
             </p>
             <form onSubmit={submitRelease} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label htmlFor="rm-reason" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Reason *</label>
+                <label htmlFor="rm-reason" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Reason *</label>
                 <select
                   id="rm-reason"
                   value={releaseInput.reason}
@@ -3790,7 +3797,7 @@ function avatarInitials(name) {
                 </select>
               </div>
               <div>
-                <label htmlFor="rm-notes" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Additional details (optional)</label>
+                <label htmlFor="rm-notes" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Additional details (optional)</label>
                 <textarea
                   id="rm-notes"
                   rows={3}
@@ -3812,20 +3819,20 @@ function avatarInitials(name) {
         <div className="modal-bg" onClick={() => setDenyModal(null)} role="presentation">
           <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>DENY APPLICATION</h2>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309" }}>DENY APPLICATION</h2>
               <button className="btn btn-outline btn-sm" onClick={() => setDenyModal(null)} aria-label="Close">✕</button>
             </div>
-            <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13 }}>
-              <div style={{ color: "#94a3b8" }}>Denying:</div>
+            <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13 }}>
+              <div style={{ color: "#475569" }}>Denying:</div>
               <div style={{ fontWeight: 600 }}>{denyModal.name}</div>
-              <div style={{ color: "#94a3b8" }}>{contractorTrades(denyModal).join(" · ")}</div>
+              <div style={{ color: "#475569" }}>{contractorTrades(denyModal).join(" · ")}</div>
             </div>
-            <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14 }}>
+            <p style={{ fontSize: 13, color: "#475569", marginBottom: 14 }}>
               The contractor will see this reason in a banner on their profile and be able to correct it and reapply. Be specific about what needs to change.
             </p>
             <form onSubmit={submitDeny} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label htmlFor="deny-reason" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Reason for denial *</label>
+                <label htmlFor="deny-reason" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Reason for denial *</label>
                 <textarea
                   id="deny-reason"
                   rows={5}
@@ -3848,16 +3855,16 @@ function avatarInitials(name) {
         <div className="modal-bg" onClick={() => setIosInstallModal(false)} role="presentation">
           <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>INSTALL ON IPHONE</h2>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309" }}>INSTALL ON IPHONE</h2>
               <button className="btn btn-outline btn-sm" onClick={() => setIosInstallModal(false)} aria-label="Close">✕</button>
             </div>
-            <ol style={{ color: "#e2e8f0", lineHeight: 1.8, fontSize: 15, paddingLeft: 20, marginBottom: 16 }}>
+            <ol style={{ color: "#1e293b", lineHeight: 1.8, fontSize: 15, paddingLeft: 20, marginBottom: 16 }}>
               <li>Make sure you're in <strong>Safari</strong> (this doesn't work in Chrome or Firefox on iOS).</li>
               <li>Tap the <strong>Share</strong> icon at the bottom center — a square with an arrow pointing up.</li>
               <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
               <li>Tap <strong>Add</strong> in the top right.</li>
             </ol>
-            <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 14, background: "#0f172a", borderRadius: 8, padding: 12 }}>
+            <div style={{ color: "#475569", fontSize: 13, marginBottom: 14, background: "#f8fafc", borderRadius: 8, padding: 12 }}>
               You'll get an app icon on your home screen that opens Subcontractor Pros full-screen, no browser bar.
             </div>
             <button type="button" className="btn btn-gold" style={{ width: "100%" }} onClick={() => setIosInstallModal(false)}>
@@ -3872,15 +3879,15 @@ function avatarInitials(name) {
         <div className="modal-bg" onClick={() => setShareModal(false)} role="presentation">
           <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>SHARE LICENSE &amp; INSURANCE</h2>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309" }}>SHARE LICENSE &amp; INSURANCE</h2>
               <button className="btn btn-outline btn-sm" onClick={() => setShareModal(false)} aria-label="Close">✕</button>
             </div>
-            <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14 }}>
+            <p style={{ fontSize: 13, color: "#475569", marginBottom: 14 }}>
               We'll email your verified license, insurance details, and links to the actual documents to whoever you enter below. Great for prospective clients who ask for proof before hiring.
             </p>
             <form onSubmit={submitShareCredentials} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label htmlFor="sh-email" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Client's Email *</label>
+                <label htmlFor="sh-email" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Client's Email *</label>
                 <input
                   id="sh-email"
                   type="email"
@@ -3891,7 +3898,7 @@ function avatarInitials(name) {
                 />
               </div>
               <div>
-                <label htmlFor="sh-name" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Client's Name (optional)</label>
+                <label htmlFor="sh-name" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Client's Name (optional)</label>
                 <input
                   id="sh-name"
                   placeholder="e.g. John"
@@ -3900,7 +3907,7 @@ function avatarInitials(name) {
                 />
               </div>
               <div>
-                <label htmlFor="sh-message" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Note (optional)</label>
+                <label htmlFor="sh-message" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Note (optional)</label>
                 <textarea
                   id="sh-message"
                   rows={4}
@@ -3925,16 +3932,16 @@ function avatarInitials(name) {
         <div className="modal-bg" onClick={() => setSupportModal(false)} role="presentation">
           <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>CONTACT SUPPORT</h2>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309" }}>CONTACT SUPPORT</h2>
               <button className="btn btn-outline btn-sm" onClick={() => setSupportModal(false)} aria-label="Close">✕</button>
             </div>
-            <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 14 }}>
+            <p style={{ fontSize: 13, color: "#475569", marginBottom: 14 }}>
               Send us a note and we'll reply by email — usually within a business day.
             </p>
             <form onSubmit={submitSupport} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {!user && (
                 <div>
-                  <label htmlFor="sup-email" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Your Email *</label>
+                  <label htmlFor="sup-email" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Your Email *</label>
                   <input
                     id="sup-email"
                     type="email"
@@ -3946,11 +3953,11 @@ function avatarInitials(name) {
               )}
               {user && (
                 <div style={{ fontSize: 12, color: "#64748b" }}>
-                  Replying to <strong style={{ color: "#94a3b8" }}>{user.email}</strong>
+                  Replying to <strong style={{ color: "#475569" }}>{user.email}</strong>
                 </div>
               )}
               <div>
-                <label htmlFor="sup-subject" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Subject *</label>
+                <label htmlFor="sup-subject" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Subject *</label>
                 <input
                   id="sup-subject"
                   required
@@ -3959,7 +3966,7 @@ function avatarInitials(name) {
                 />
               </div>
               <div>
-                <label htmlFor="sup-body" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Message *</label>
+                <label htmlFor="sup-body" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Message *</label>
                 <textarea
                   id="sup-body"
                   rows={5}
@@ -3982,17 +3989,17 @@ function avatarInitials(name) {
         <div className="modal-bg" onClick={() => setCompleteModal(null)} role="presentation">
           <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" style={{ maxWidth: 520 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b" }}>HOW DID IT GO?</h2>
+              <h2 style={{ fontSize: 22, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#b45309" }}>HOW DID IT GO?</h2>
               <button className="btn btn-outline btn-sm" onClick={() => setCompleteModal(null)} aria-label="Close">✕</button>
             </div>
-            <div style={{ background: "#0f172a", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13 }}>
-              <div style={{ color: "#94a3b8" }}>Reviewing:</div>
+            <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13 }}>
+              <div style={{ color: "#475569" }}>Reviewing:</div>
               <div style={{ fontWeight: 600 }}>{completeModal.accepter?.name}</div>
-              <div style={{ color: "#94a3b8" }}>{completeModal.title}</div>
+              <div style={{ color: "#475569" }}>{completeModal.title}</div>
             </div>
             <form onSubmit={submitComplete} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
-                <legend style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>Rate the work</legend>
+                <legend style={{ fontSize: 13, color: "#475569", marginBottom: 6 }}>Rate the work</legend>
                 <div style={{ display: "flex", gap: 4 }}>
                   {[1, 2, 3, 4, 5].map(s => (
                     <button
@@ -4002,7 +4009,7 @@ function avatarInitials(name) {
                       onClick={() => setCompleteInput(c => ({ ...c, rating: s }))}
                       aria-label={`${s} star${s !== 1 ? "s" : ""}`}
                       aria-pressed={s <= completeInput.rating}
-                      style={{ color: s <= completeInput.rating ? "#f59e0b" : "#334155" }}
+                      style={{ color: s <= completeInput.rating ? "#b45309" : "#334155" }}
                     >
                       ★
                     </button>
@@ -4010,7 +4017,7 @@ function avatarInitials(name) {
                 </div>
               </fieldset>
               <div>
-                <label htmlFor="cm-review" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Public review *</label>
+                <label htmlFor="cm-review" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Public review *</label>
                 <textarea
                   id="cm-review"
                   rows={3}
@@ -4022,7 +4029,7 @@ function avatarInitials(name) {
                 <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Shown on the contractor's profile.</div>
               </div>
               <div>
-                <label htmlFor="cm-comment" style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6, display: "block" }}>Private note to Subcontractor Pros (optional)</label>
+                <label htmlFor="cm-comment" style={{ fontSize: 13, color: "#475569", marginBottom: 6, display: "block" }}>Private note to Subcontractor Pros (optional)</label>
                 <textarea
                   id="cm-comment"
                   rows={2}
