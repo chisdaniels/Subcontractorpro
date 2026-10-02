@@ -1548,8 +1548,9 @@ function avatarInitials(name) {
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
         .user-menu { position: absolute; top: calc(100% + 8px); right: 0; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 6px; min-width: 240px; display: flex; flex-direction: column; gap: 2px; z-index: 50; box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
         .user-menu-who { padding: 10px 14px 12px; margin-bottom: 4px; border-bottom: 1px solid #334155; max-width: 280px; }
-        .user-menu-item { background: none; border: none; cursor: pointer; padding: 12px 14px; font-size: 14px; font-weight: 600; color: #cbd5e1; border-radius: 8px; text-align: left; font-family: inherit; transition: background 0.15s, color 0.15s; white-space: nowrap; }
-        .user-menu-item:hover { background: #0f172a; color: #f1f5f9; }
+        .user-menu-item { background: none; border: none; cursor: pointer; padding: 12px 14px; font-size: 14px; font-weight: 600; color: #f59e0b; border-radius: 8px; text-align: left; font-family: inherit; transition: background 0.15s, color 0.15s; white-space: nowrap; }
+        .user-menu-item:hover { background: #0f172a; }
+        .user-menu-item:active { background: #f59e0b; color: #0f172a; }
         .user-menu-item:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; }
         .toolbar-btn { flex: 1; background: #1e293b; border: 1px solid #334155; color: #f59e0b; border-radius: 12px; padding: 14px 16px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s; }
         .toolbar-btn:hover { border-color: #f59e0b; }
