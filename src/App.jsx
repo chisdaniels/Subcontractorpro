@@ -1680,6 +1680,10 @@ function avatarInitials(name) {
       if (totalUnread > 0) navigator.setAppBadge?.(totalUnread);
       else navigator.clearAppBadge?.();
     } catch {}
+    // The service worker adds to this count for pushes while the app is closed.
+    caches?.open("app-badge")
+      .then(c => c.put("/__badge-count", new Response(String(totalUnread))))
+      .catch(() => {});
   }, [totalUnread, user]);
 
   useEffect(() => {

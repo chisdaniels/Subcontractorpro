@@ -15,11 +15,26 @@ self.addEventListener("fetch", () => {
   // no-op — let the network handle everything.
 });
 
-async function updateBadge() {
-  if (!self.navigator.setAppBadge) return;
-  const shown = await self.registration.getNotifications();
-  if (shown.length) await self.navigator.setAppBadge(shown.length);
-  else await self.navigator.clearAppBadge?.();
+// App icon badge. The count is kept in a one-entry cache (not used for
+// fetches) because browsers don't reliably report which notifications are
+// still showing. Each push adds one; the app resets it to the real unread
+// count whenever it's opened.
+const BADGE_CACHE = "app-badge";
+const BADGE_KEY = "/__badge-count";
+
+async function readBadgeCount() {
+  try {
+    const hit = await (await caches.open(BADGE_CACHE)).match(BADGE_KEY);
+    return hit ? parseInt(await hit.text(), 10) || 0 : 0;
+  } catch { return 0; }
+}
+
+async function setBadgeCount(n) {
+  try { await (await caches.open(BADGE_CACHE)).put(BADGE_KEY, new Response(String(n))); } catch {}
+  try {
+    if (n > 0) await self.navigator.setAppBadge?.(n);
+    else await self.navigator.clearAppBadge?.();
+  } catch {}
 }
 
 self.addEventListener("push", (event) => {
@@ -34,7 +49,7 @@ self.addEventListener("push", (event) => {
       icon: "/favicon.svg",
       data: { url: data.url || "/messages" },
     });
-    await updateBadge();
+    await setBadgeCount((await readBadgeCount()) + 1);
   })());
 });
 
@@ -42,7 +57,6 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = new URL(event.notification.data?.url || "/messages", self.location.origin).href;
   event.waitUntil((async () => {
-    await updateBadge();
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const client of windows) {
       if (new URL(client.url).origin === self.location.origin) {
@@ -53,8 +67,4 @@ self.addEventListener("notificationclick", (event) => {
     }
     await self.clients.openWindow(url);
   })());
-});
-
-self.addEventListener("notificationclose", (event) => {
-  event.waitUntil(updateBadge());
 });
