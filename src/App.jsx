@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "./lib/supabase";
 import { ServiceFilter, ServicePicker, ServiceSelect, serviceFilterMatches } from "./ServicePicker";
+import { AdminSection, byStatus } from "./AdminSection";
 import AdminServices from "./AdminServices";
 import { CredentialList, CredentialReviewPanel, DocLink, VerifiedCredentialBadges, VerifiedCredentialsSummary, VERIFIED_PRO_MEANING } from "./credentials";
 import {
@@ -39,6 +40,7 @@ const TAB_PATHS = {
   reviews:  "/reviews",
   admin:    "/admin",
 };
+const ACTIVE_USER_DAYS = 30; // Admin "active user" = signed in this recently
 const PATH_TABS = Object.fromEntries(Object.entries(TAB_PATHS).map(([t, p]) => [p, t]));
 
 function pathToTab(pathname, hash) {
@@ -1380,6 +1382,13 @@ function avatarInitials(name) {
 
   // Needs the private credentials row, so only meaningful for the pro
   // themselves, admins, and a hiring customer.
+  // Admin dashboard "active" definitions.
+  function isActiveUser(u) {
+    return !!u.last_sign_in_at && Date.now() - new Date(u.last_sign_in_at).getTime() < ACTIVE_USER_DAYS * 86400000;
+  }
+  function isActiveJob(j) {
+    return !j.deleted_at && j.status !== "completed";
+  }
   function hasCredentialsOnFile(c) {
     return !!(c && (c.business_license_path || c.license_path) && c.insurance_path);
   }
@@ -1603,6 +1612,16 @@ function avatarInitials(name) {
         .admin-svc-row { display: flex; padding: 10px 12px; background: #0f172a; border-radius: 8px; font-size: 13px; gap: 10px; }
         .join-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px; }
         .join-card { padding: 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border-color: #f59e0b; }
+        .admin-section { border: 1px solid #334155; border-radius: 14px; background: #111a2e; margin-bottom: 12px; }
+        .admin-section-h { margin: 0; font-size: 18px; font-weight: 700; }
+        .admin-section-toggle { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; background: transparent; border: none; color: #f1f5f9; font: inherit; padding: 16px; cursor: pointer; text-align: left; border-radius: 14px; }
+        .admin-section-toggle:hover .admin-section-caret { color: #f59e0b; }
+        .admin-section-toggle:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; }
+        .admin-section-summary { display: block; font-size: 12px; font-weight: 500; color: #64748b; margin-top: 2px; }
+        .admin-section-caret { color: #94a3b8; font-size: 16px; }
+        .admin-section-body { padding: 0 16px 16px; }
+        .admin-section-filter { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+        .btn-outline[aria-pressed="true"] { background: #f59e0b; border-color: #f59e0b !important; color: #0f172a !important; }
         .filter-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
         .filter-bar select { width: auto; min-width: 180px; max-width: 100%; }
         .svc-filter { position: relative; min-width: 220px; max-width: 100%; }
@@ -2562,11 +2581,9 @@ function avatarInitials(name) {
             <h1 id="admin-heading" style={{ fontSize: 28, fontFamily: "'Bebas Neue', cursive", letterSpacing: 2, color: "#f59e0b", marginBottom: 4 }}>ADMIN</h1>
             <p style={{ color: "#64748b", marginBottom: 20, fontSize: 14 }}>Verify contractor documents and manage the admin team.</p>
 
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
-              Pending Verification ({contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).length})
-            </h2>
-            {contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).length === 0 ? (
-              <div style={{ color: "#475569", padding: 20 }}>Nothing waiting for review. 🎉</div>
+            <AdminSection id="pending" title="Pending Verification" summary={`${contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).length} waiting`} defaultOpen>
+            {() => contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).length === 0 ? (
+              <div style={{ color: "#475569", padding: 12 }}>Nothing waiting for review. 🎉</div>
             ) : (
               <div style={{ display: "grid", gap: 12, marginBottom: 32 }}>
                 {contractors.filter(c => hasCredentialsOnFile(c) && !c.verified && !c.denied_at).map(c => (
@@ -2604,14 +2621,13 @@ function avatarInitials(name) {
                 ))}
               </div>
             )}
+            </AdminSection>
 
             {/* Denied contractors — data stays visible for admin review */}
             {contractors.filter(c => c.denied_at).length > 0 && (
-              <>
-                <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
-                  Denied ({contractors.filter(c => c.denied_at).length})
-                </h2>
-                <div style={{ display: "grid", gap: 12, marginBottom: 32 }}>
+              <AdminSection id="denied" title="Denied" summary={`${contractors.filter(c => c.denied_at).length} denied`}>
+                {() => (
+                <div style={{ display: "grid", gap: 12 }}>
                   {contractors.filter(c => c.denied_at).map(c => (
                     <details key={c.id} className="card" style={{ padding: 0, borderColor: "#7f1d1d" }}>
                       <summary style={{ padding: 14, cursor: "pointer", listStyle: "none", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -2644,17 +2660,24 @@ function avatarInitials(name) {
                     </details>
                   ))}
                 </div>
-              </>
+                )}
+              </AdminSection>
             )}
 
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
-              Verified Contractors ({contractors.filter(c => c.verified).length})
-            </h2>
-            {contractors.filter(c => c.verified).length === 0 ? (
-              <div style={{ color: "#475569", padding: 12, marginBottom: 32 }}>None yet.</div>
+            <AdminSection
+              id="verified"
+              title="Verified Contractors"
+              summary={`${contractors.filter(c => c.verified && !c.deactivated_at).length} on the board · ${contractors.filter(c => c.verified && c.deactivated_at).length} off`}
+              counts={{ active: contractors.filter(c => c.verified && !c.deactivated_at).length, inactive: contractors.filter(c => c.verified && c.deactivated_at).length }}
+              hint="Active = on the board. Inactive = taken off the board."
+            >
+            {filter => {
+              const shownPros = byStatus(contractors.filter(c => c.verified), filter, c => !c.deactivated_at);
+              return shownPros.length === 0 ? (
+              <div style={{ color: "#475569", padding: 12 }}>None here.</div>
             ) : (
-              <div style={{ display: "grid", gap: 12, marginBottom: 32 }}>
-                {contractors.filter(c => c.verified).map(c => (
+              <div style={{ display: "grid", gap: 12 }}>
+                {shownPros.map(c => (
                   <details key={c.id} className="card" style={{ padding: 0 }}>
                     <summary style={{ padding: 14, cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
@@ -2738,21 +2761,27 @@ function avatarInitials(name) {
                   </details>
                 ))}
               </div>
-            )}
+            );
+            }}
+            </AdminSection>
 
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
-              Users ({adminUsers.length} total · {adminUsers.filter(u => u.contractor_id).length} pros · {adminUsers.filter(u => !u.contractor_id).length} customers)
-            </h2>
-            {(() => {
+            <AdminSection
+              id="users"
+              title="Users"
+              summary={`${adminUsers.length} total · ${adminUsers.filter(u => u.contractor_id).length} pros · ${adminUsers.filter(u => !u.contractor_id).length} customers`}
+              counts={{ active: adminUsers.filter(isActiveUser).length, inactive: adminUsers.filter(u => !isActiveUser(u)).length }}
+              hint={`Active = signed in within the last ${ACTIVE_USER_DAYS} days.`}
+            >
+            {filter => {
               const q = adminUserSearch.trim().toLowerCase();
-              const shown = adminUsers.filter(u =>
+              const shown = byStatus(adminUsers, filter, isActiveUser).filter(u =>
                 (!q || (u.name || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q)) &&
                 (adminUserRole === "" ||
                   (adminUserRole === "pro" && u.contractor_id) ||
                   (adminUserRole === "customer" && !u.contractor_id) ||
                   (adminUserRole === "admin" && u.is_admin)));
               return (
-                <div style={{ marginBottom: 32 }}>
+                <div>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
                     <label htmlFor="admin-user-search" className="sr-only">Search users</label>
                     <input
@@ -2810,16 +2839,23 @@ function avatarInitials(name) {
                   )}
                 </div>
               );
-            })()}
+            }}
+            </AdminSection>
 
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
-              All Jobs ({jobs.filter(j => !j.deleted_at).length} live · {jobs.filter(j => j.deleted_at).length} removed)
-            </h2>
-            {jobs.length === 0 ? (
-              <div style={{ color: "#475569", padding: 12, marginBottom: 32 }}>No jobs yet.</div>
+            <AdminSection
+              id="jobs"
+              title="All Jobs"
+              summary={`${jobs.filter(j => !j.deleted_at).length} live · ${jobs.filter(j => j.deleted_at).length} removed`}
+              counts={{ active: jobs.filter(isActiveJob).length, inactive: jobs.filter(j => !isActiveJob(j)).length }}
+              hint="Active = open or in progress. Inactive = completed or removed."
+            >
+            {filter => {
+              const shownJobs = byStatus(jobs, filter, isActiveJob);
+              return shownJobs.length === 0 ? (
+              <div style={{ color: "#475569", padding: 12 }}>{jobs.length === 0 ? "No jobs yet." : "None here."}</div>
             ) : (
-              <div style={{ display: "grid", gap: 8, marginBottom: 32 }}>
-                {jobs.map(j => (
+              <div style={{ display: "grid", gap: 8 }}>
+                {shownJobs.map(j => (
                   <div key={j.id} className="card" style={{ padding: 12, fontSize: 13, opacity: j.deleted_at ? 0.7 : 1, borderColor: j.deleted_at ? "#7f1d1d" : undefined }}>
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
                       <div style={{ fontWeight: 600 }}>
@@ -2870,16 +2906,25 @@ function avatarInitials(name) {
                   </div>
                 ))}
               </div>
-            )}
+            );
+            }}
+            </AdminSection>
 
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
-              Support Tickets ({supportTickets.filter(t => t.status === "open").length} open · {supportTickets.length} total)
-            </h2>
-            {supportTickets.length === 0 ? (
-              <div style={{ color: "#475569", padding: 12, marginBottom: 32 }}>No tickets yet.</div>
+            <AdminSection
+              id="tickets"
+              title="Support Tickets"
+              summary={`${supportTickets.filter(t => t.status === "open").length} open · ${supportTickets.length} total`}
+              counts={{ active: supportTickets.filter(t => t.status === "open").length, inactive: supportTickets.filter(t => t.status !== "open").length }}
+              hint="Active = open. Inactive = closed."
+              defaultOpen
+            >
+            {filter => {
+              const shownTickets = byStatus(supportTickets, filter, t => t.status === "open");
+              return shownTickets.length === 0 ? (
+              <div style={{ color: "#475569", padding: 12 }}>{supportTickets.length === 0 ? "No tickets yet." : "None here."}</div>
             ) : (
-              <div style={{ display: "grid", gap: 8, marginBottom: 32 }}>
-                {supportTickets.map(t => (
+              <div style={{ display: "grid", gap: 8 }}>
+                {shownTickets.map(t => (
                   <details key={t.id} className="card" style={{ padding: 0 }}>
                     <summary style={{ padding: 12, cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
@@ -2907,15 +2952,15 @@ function avatarInitials(name) {
                   </details>
                 ))}
               </div>
-            )}
+            );
+            }}
+            </AdminSection>
 
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
-              Job Releases ({jobReleases.length})
-            </h2>
-            {jobReleases.length === 0 ? (
-              <div style={{ color: "#475569", padding: 12, marginBottom: 32 }}>No releases yet.</div>
+            <AdminSection id="releases" title="Job Releases" summary={`${jobReleases.length} total`}>
+            {() => jobReleases.length === 0 ? (
+              <div style={{ color: "#475569", padding: 12 }}>No releases yet.</div>
             ) : (
-              <div style={{ display: "grid", gap: 8, marginBottom: 32 }}>
+              <div style={{ display: "grid", gap: 8 }}>
                 {jobReleases.map(r => {
                   const contractor = contractors.find(c => c.id === r.contractor_row_id);
                   const job = jobs.find(j => j.id === r.job_id);
@@ -2946,8 +2991,18 @@ function avatarInitials(name) {
                 })}
               </div>
             )}
+            </AdminSection>
 
+            <AdminSection
+              id="services"
+              title="Services & Categories"
+              summary={`${catalog.list.filter(s => s.is_active).length} active · ${catalog.list.filter(s => !s.is_active).length} inactive`}
+              counts={{ active: catalog.list.filter(s => s.is_active).length, inactive: catalog.list.filter(s => !s.is_active).length }}
+              hint="Inactive services are hidden from new profiles and jobs."
+            >
+            {filter => (
             <AdminServices
+              statusFilter={filter}
               catalog={catalog}
               rules={catalogRaw.rules}
               contractors={contractors}
@@ -2957,8 +3012,11 @@ function avatarInitials(name) {
               notify={notify}
               reload={loadCatalog}
             />
+            )}
+            </AdminSection>
 
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Admin Team</h2>
+            <AdminSection id="team" title="Admin Team" summary={`${adminList.length} admin${adminList.length === 1 ? "" : "s"}${adminInvites.length ? ` · ${adminInvites.length} invited` : ""}`}>
+            {() => (<>
             <form onSubmit={adminInvite} className="card" style={{ padding: 14, marginBottom: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
               <input
                 type="email"
@@ -2986,6 +3044,8 @@ function avatarInitials(name) {
                 </div>
               ))}
             </div>
+            </>)}
+            </AdminSection>
           </section>
         )}
 

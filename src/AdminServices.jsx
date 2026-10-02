@@ -16,7 +16,7 @@ function contractorTrades(c) {
   return Array.isArray(c?.trades) && c.trades.length ? c.trades : c?.trade ? [c.trade] : [];
 }
 
-export default function AdminServices({ catalog, rules, contractors, jobs, adminList, user, notify, reload }) {
+export default function AdminServices({ catalog, rules, contractors, jobs, adminList, user, notify, reload, statusFilter = "all" }) {
   const [filter, setFilter] = useState("");
   const [openGroups, setOpenGroups] = useState(() => new Set());
   const [busy, setBusy] = useState(false);
@@ -51,6 +51,8 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
     () => (filter.trim() ? searchCatalog(catalog, filter, { includeInactive: true }).map(r => r.service) : null),
     [catalog, filter]
   );
+  // Admin dashboard's All / Active / Inactive choice.
+  const statusMatch = s => statusFilter === "all" || (statusFilter === "active") === !!s.is_active;
 
   async function run(fn, success) {
     setBusy(true);
@@ -270,7 +272,6 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
 
   // ---------- Render ----------
   const realGroups = catalog.groups.filter(g => g.slug !== "__other");
-  const activeCount = catalog.list.filter(s => s.is_active).length;
 
   const ruleLine = r => [
     r.jurisdiction_level === "federal" ? "Federal" : [r.city, r.county && `${r.county} County`, r.state_code].filter(Boolean).join(", "),
@@ -463,10 +464,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
   }
 
   return (
-    <div style={{ marginBottom: 32 }}>
-      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-        Services &amp; Categories ({activeCount} active · {catalog.list.length - activeCount} inactive)
-      </h2>
+    <div>
       <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>
         Groups organize the pickers. Deactivating a service hides it from new profiles and jobs; existing ones keep it.
       </p>
@@ -493,12 +491,14 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
 
       {filterHits ? (
         <div style={{ display: "grid", gap: 6 }}>
-          {filterHits.length === 0 && <div style={{ color: "#475569", padding: 12 }}>No match.</div>}
-          {filterHits.map(s => serviceRow(s, 0, null, true))}
+          {filterHits.filter(statusMatch).length === 0 && <div style={{ color: "#475569", padding: 12 }}>No match.</div>}
+          {filterHits.filter(statusMatch).map(s => serviceRow(s, 0, null, true))}
         </div>
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           {catalog.groups.map((g, gi) => {
+            const groupServices = g.services.filter(statusMatch);
+            if (statusFilter !== "all" && groupServices.length === 0) return null;
             const open = openGroups.has(g.slug);
             const isReal = g.slug !== "__other";
             const active = g.services.filter(s => s.is_active).length;
@@ -541,7 +541,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
                 {open && (
                   <div style={{ display: "grid", gap: 6, padding: "0 12px 12px" }}>
                     {g.services.length === 0 && <div style={{ color: "#475569", fontSize: 13 }}>No services in this group.</div>}
-                    {g.services.map((s, i) => serviceRow(s, i, isReal ? g.services : null))}
+                    {groupServices.map(s => serviceRow(s, g.services.indexOf(s), isReal ? g.services : null))}
                   </div>
                 )}
               </div>
