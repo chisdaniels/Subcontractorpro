@@ -38,7 +38,7 @@ export function ServicePicker({ catalog, value, onChange, idPrefix, withPrimary 
         <span style={{ minWidth: 0 }}>
           <span style={{ display: "block", color: "#0f172a" }}>{s.name}</span>
           {(showGroup || hint || s.description) && (
-            <span style={{ display: "block", fontSize: 11, color: "#64748b", lineHeight: 1.4 }}>
+            <span style={{ display: "block", fontSize: "0.8125rem", color: "#64748b", lineHeight: 1.4 }}>
               {[showGroup && s.group?.name, hint, s.description].filter(Boolean).join(" · ")}
             </span>
           )}
@@ -49,7 +49,7 @@ export function ServicePicker({ catalog, value, onChange, idPrefix, withPrimary 
 
   return (
     <div className="svc-picker">
-      {label && <div style={{ fontSize: 13, color: "#475569", marginBottom: 6 }}>{label}</div>}
+      {label && <div style={{ fontSize: "0.9375rem", color: "#475569", marginBottom: 6 }}>{label}</div>}
       {value.length > 0 && (
         <ul className="svc-chips" aria-label="Selected services">
           {value.map((name, i) => {
@@ -87,7 +87,7 @@ export function ServicePicker({ catalog, value, onChange, idPrefix, withPrimary 
               {results.slice(0, 40).map(r => option(r.service, { showGroup: true, hint: r.matchedAlias ? `matches “${r.matchedAlias}”` : null }))}
             </div>
           ) : (
-            <div style={{ color: "#64748b", fontSize: 13, padding: 10 }} role="status">
+            <div style={{ color: "#64748b", fontSize: "0.9375rem", padding: 10 }} role="status">
               No matching service. Try another word, or browse the categories.
             </div>
           )

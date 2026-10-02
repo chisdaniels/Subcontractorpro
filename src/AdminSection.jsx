@@ -64,7 +64,7 @@ export function AdminSection({ id, title, summary, counts, hint, defaultOpen = f
                   </button>
                 ))}
               </div>
-              {hint && <div style={{ fontSize: 12, color: "#64748b" }}>{hint}</div>}
+              {hint && <div style={{ fontSize: "0.875rem", color: "#64748b" }}>{hint}</div>}
             </div>
           )}
           {children(filter)}

@@ -308,18 +308,18 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
             <textarea id="svc-edit-aliases" rows={2} value={editForm.aliases} onChange={e => setEditForm(f => ({ ...f, aliases: e.target.value }))} />
           </div>
           <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#b45309", marginBottom: 4 }}>PLATFORM DOCUMENT POLICY</div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
+            <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "#b45309", marginBottom: 4 }}>PLATFORM DOCUMENT POLICY</div>
+            <div style={{ fontSize: "0.875rem", color: "#64748b", marginBottom: 8 }}>
               What SubcontractorPros asks providers of this service to upload. This is platform policy, not a statement of what the law requires — use Rules for jurisdiction requirements.
             </div>
             <label htmlFor="svc-edit-lic" className="field-label">Trade license upload label <span style={{ color: "#64748b" }}>(blank = no trade license upload)</span></label>
             <input id="svc-edit-lic" placeholder="e.g. State Plumbing License" value={editForm.license_label} onChange={e => setEditForm(f => ({ ...f, license_label: e.target.value }))} />
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0f172a", cursor: "pointer", marginTop: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.9375rem", color: "#0f172a", cursor: "pointer", marginTop: 8 }}>
               <input type="checkbox" checked={editForm.requires_bond} onChange={e => setEditForm(f => ({ ...f, requires_bond: e.target.checked }))} style={{ width: "auto", accentColor: "#f59e0b" }} />
               Require a surety bond upload
             </label>
           </div>
-          <div style={{ fontSize: 12, color: "#64748b" }}>
+          <div style={{ fontSize: "0.875rem", color: "#64748b" }}>
             To merge a duplicate, rename it to the exact name of the service to keep.
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -339,7 +339,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
               {!s.is_active && <span className="badge unavail" style={{ marginLeft: 6 }}>Inactive</span>}
               {showGroup && s.group && <span style={{ color: "#64748b", fontWeight: 400 }}> · {s.group.name}</span>}
             </div>
-            <div style={{ fontSize: 12, color: "#475569" }}>
+            <div style={{ fontSize: "0.875rem", color: "#475569" }}>
               {u.pros} pro{u.pros === 1 ? "" : "s"} · {u.openJobs} open job{u.openJobs === 1 ? "" : "s"}
               {" · "}
               Platform docs: {s.trade_license_label ? `${s.trade_license_label} upload` : "no trade license upload"}{s.requires_bond ? " + bond" : ""}
@@ -347,7 +347,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
               {sRules.length ? `${sRules.length} jurisdiction rule${sRules.length === 1 ? "" : "s"}` : "no reviewed rules"}
             </div>
             {s.aliases.length > 0 && (
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+              <div style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: 2 }}>
                 Also found as: {s.aliases.slice(0, 8).join(", ")}{s.aliases.length > 8 ? ` +${s.aliases.length - 8}` : ""}
               </div>
             )}
@@ -370,13 +370,13 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
 
         {rulesFor === s.name && (
           <div style={{ marginTop: 10, borderTop: "1px solid #e2e8f0", paddingTop: 10 }}>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
+            <div style={{ fontSize: "0.875rem", color: "#64748b", marginBottom: 8 }}>
               Legal requirements by jurisdiction. Only record a determination you've confirmed from an authoritative source.
               Anywhere without a rule shows: “{REQUIREMENTS_FALLBACK}”
             </div>
-            {sRules.length === 0 && <div style={{ fontSize: 12, color: "#475569", marginBottom: 8 }}>No rules yet.</div>}
+            {sRules.length === 0 && <div style={{ fontSize: "0.875rem", color: "#475569", marginBottom: 8 }}>No rules yet.</div>}
             {sRules.map(r => (
-              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, padding: "6px 0", borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" }}>
+              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: "0.875rem", padding: "6px 0", borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" }}>
                 <div style={{ minWidth: 0, flex: 1, color: "#0f172a" }}>
                   {ruleLine(r)}
                   <div style={{ color: "#64748b" }}>
@@ -465,7 +465,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
 
   return (
     <div>
-      <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>
+      <p style={{ fontSize: "0.9375rem", color: "#64748b", marginBottom: 12 }}>
         Groups organize the pickers. Deactivating a service hides it from new profiles and jobs; existing ones keep it.
       </p>
 
@@ -523,7 +523,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
                       <span>
                         {g.name}
                         {!g.is_active && <span className="badge unavail" style={{ marginLeft: 6 }}>Hidden</span>}
-                        <span style={{ color: "#64748b", fontWeight: 400, fontSize: 12 }}> · {active} active / {g.services.length}</span>
+                        <span style={{ color: "#64748b", fontWeight: 400, fontSize: "0.875rem" }}> · {active} active / {g.services.length}</span>
                       </span>
                       <span aria-hidden="true">{open ? "▴" : "▾"}</span>
                     </button>
@@ -540,7 +540,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
                 </div>
                 {open && (
                   <div style={{ display: "grid", gap: 6, padding: "0 12px 12px" }}>
-                    {g.services.length === 0 && <div style={{ color: "#64748b", fontSize: 13 }}>No services in this group.</div>}
+                    {g.services.length === 0 && <div style={{ color: "#64748b", fontSize: "0.9375rem" }}>No services in this group.</div>}
                     {groupServices.map(s => serviceRow(s, g.services.indexOf(s), isReal ? g.services : null))}
                   </div>
                 )}
@@ -554,7 +554,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
         {audit ? "Hide change history" : "Show change history"}
       </button>
       {audit && (
-        <div className="card" style={{ padding: 12, marginTop: 8, fontSize: 12 }}>
+        <div className="card" style={{ padding: 12, marginTop: 8, fontSize: "0.875rem" }}>
           {audit.length === 0 && <div style={{ color: "#64748b" }}>No changes recorded yet.</div>}
           {audit.map(a => {
             const who = adminList.find(x => x.user_id === a.actor)?.email || (a.actor ? a.actor.slice(0, 8) : "system");

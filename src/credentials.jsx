@@ -40,8 +40,8 @@ export function DocLink({ path, children = "View document" }) {
   }
   return (
     <>
-      <a href="#" onClick={open} style={{ color: "#047857", textDecoration: "underline", fontSize: 12 }}>{children}</a>
-      {failed && <span style={{ color: "#dc2626", fontSize: 12 }}> — couldn't open this document</span>}
+      <a href="#" onClick={open} style={{ color: "#047857", textDecoration: "underline", fontSize: "0.875rem" }}>{children}</a>
+      {failed && <span style={{ color: "#dc2626", fontSize: "0.875rem" }}> — couldn't open this document</span>}
     </>
   );
 }
@@ -66,10 +66,10 @@ export function CredentialList({ contractor, reqMap, showDocs = false, showNotes
       {items.map(item => (
         <li key={item.key} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13 }}>{item.label}</div>
-            {detailLine(item) && <div style={{ fontSize: 12, color: "#475569" }}>{detailLine(item)}</div>}
+            <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.9375rem" }}>{item.label}</div>
+            {detailLine(item) && <div style={{ fontSize: "0.875rem", color: "#475569" }}>{detailLine(item)}</div>}
             {showNotes && item.review?.note && item.review.doc_path === item.docPath && (
-              <div style={{ fontSize: 12, color: "#b45309" }}>Reviewer note: {item.review.note}</div>
+              <div style={{ fontSize: "0.875rem", color: "#b45309" }}>Reviewer note: {item.review.note}</div>
             )}
             {showDocs && item.docPath && <DocLink path={item.docPath} />}
           </div>
@@ -94,18 +94,18 @@ export function VerifiedCredentialBadges({ contractor }) {
 export function VerifiedCredentialsSummary({ contractor }) {
   const labels = verifiedCredentialLabels(contractor);
   if (!labels.length) {
-    return <div style={{ fontSize: 13, color: "#475569" }}>No credentials verified yet.</div>;
+    return <div style={{ fontSize: "0.9375rem", color: "#475569" }}>No credentials verified yet.</div>;
   }
   return (
     <>
       <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
         {labels.map(l => (
-          <li key={l} style={{ fontSize: 14, color: "#0f172a" }}>
+          <li key={l} style={{ fontSize: "1rem", color: "#0f172a" }}>
             <span style={{ color: "#047857", fontWeight: 700 }}>✓</span> {l} verified
           </li>
         ))}
       </ul>
-      <div style={{ fontSize: 12, color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
+      <div style={{ fontSize: "0.875rem", color: "#64748b", marginTop: 10, lineHeight: 1.5 }}>
         Our team checked each of these documents. The customer who hires this pro can view them.
       </div>
     </>
@@ -153,20 +153,20 @@ function CredentialReviewRow({ item, onSave }) {
   }
 
   return (
-    <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, fontSize: 13 }}>
+    <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, fontSize: "0.9375rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 700, color: "#0f172a" }}>{item.label}</div>
-          {detailLine(item) && <div style={{ fontSize: 12, color: "#475569" }}>{detailLine(item)}</div>}
+          {detailLine(item) && <div style={{ fontSize: "0.875rem", color: "#475569" }}>{detailLine(item)}</div>}
           {item.docPath
             ? <DocLink path={item.docPath} />
-            : <span style={{ fontSize: 12, color: "#64748b" }}>No document uploaded</span>}
-          {item.review?.note && <div style={{ fontSize: 12, color: "#b45309", marginTop: 4 }}>Note: {item.review.note}</div>}
+            : <span style={{ fontSize: "0.875rem", color: "#64748b" }}>No document uploaded</span>}
+          {item.review?.note && <div style={{ fontSize: "0.875rem", color: "#b45309", marginTop: 4 }}>Note: {item.review.note}</div>}
           {item.review?.reviewed_at && current && (
-            <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>Reviewed {new Date(item.review.reviewed_at).toLocaleString()}</div>
+            <div style={{ fontSize: "0.8125rem", color: "#64748b", marginTop: 2 }}>Reviewed {new Date(item.review.reviewed_at).toLocaleString()}</div>
           )}
           {item.review && !current && item.docPath && (
-            <div style={{ fontSize: 11, color: "#b45309", marginTop: 2 }}>New file uploaded since the last review.</div>
+            <div style={{ fontSize: "0.8125rem", color: "#b45309", marginTop: 2 }}>New file uploaded since the last review.</div>
           )}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
