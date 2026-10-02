@@ -1489,9 +1489,9 @@ function avatarInitials(name) {
         .user-menu-item { background: none; border: none; cursor: pointer; padding: 12px 14px; font-size: 14px; font-weight: 600; color: #cbd5e1; border-radius: 8px; text-align: left; font-family: inherit; transition: background 0.15s, color 0.15s; white-space: nowrap; }
         .user-menu-item:hover { background: #0f172a; color: #f1f5f9; }
         .user-menu-item:focus-visible { outline: 2px solid #f59e0b; outline-offset: -2px; }
-        .toolbar-btn { flex: 1; background: #1e293b; border: 1px solid #334155; color: #cbd5e1; border-radius: 12px; padding: 14px 16px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s; }
-        .toolbar-btn:hover { border-color: #f59e0b; color: #f1f5f9; }
-        .toolbar-btn:active { transform: scale(0.98); }
+        .toolbar-btn { flex: 1; background: #1e293b; border: 1px solid #334155; color: #f59e0b; border-radius: 12px; padding: 14px 16px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s; }
+        .toolbar-btn:hover { border-color: #f59e0b; }
+        .toolbar-btn:active { transform: scale(0.98); background: #f59e0b; border-color: #f59e0b; color: #0f172a; }
         .toolbar-btn.active { background: #f59e0b; border-color: #f59e0b; color: #0f172a; }
         .toolbar-btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
         .card { background: #1e293b; border-radius: 16px; border: 1px solid #334155; transition: transform 0.18s, box-shadow 0.18s; }
@@ -1503,7 +1503,9 @@ function avatarInitials(name) {
         .btn:hover { opacity: 0.88; transform: scale(0.98); }
         .btn:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
         .btn-gold { background: #f59e0b; color: #0f172a; }
-        .btn-outline { background: transparent; border: 1.5px solid #334155; color: #94a3b8; }
+        .btn-outline { background: transparent; border: 1.5px solid #334155; color: #f59e0b; transition: opacity 0.15s, transform 0.15s, background 0.15s, border-color 0.15s, color 0.15s; }
+        .btn-outline:hover { border-color: #f59e0b; }
+        .btn-outline:not(:disabled):active, .btn-outline[aria-expanded="true"] { background: #f59e0b; border-color: #f59e0b !important; color: #0f172a !important; opacity: 1; }
         .btn-sm { padding: 6px 14px; font-size: 13px; border-radius: 8px; }
         input, textarea, select { background: #0f172a; border: 1.5px solid #334155; border-radius: 10px; color: #f1f5f9; padding: 10px 14px; font-family: inherit; font-size: 16px; width: 100%; outline: none; }
         input:focus, textarea:focus, select:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
