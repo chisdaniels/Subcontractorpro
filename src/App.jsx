@@ -395,6 +395,15 @@ export default function App() {
       await savePushSubscription();
       setPushState("on");
       notify("Notifications are on for this device.");
+      // A local test notification shows right away whether this device's
+      // settings let notifications through.
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification("Notifications are working", {
+        body: "You'll get alerts like this for new messages, even when the app is closed.",
+        tag: "test",
+        icon: "/favicon.svg",
+        data: { url: "/messages" },
+      });
     } catch (err) {
       console.error("push subscribe failed:", err);
       notify("Couldn't turn on notifications: " + (err.message || err));
