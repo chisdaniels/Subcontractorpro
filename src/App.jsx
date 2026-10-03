@@ -1808,7 +1808,7 @@ function avatarInitials(name) {
         .svc-list { max-height: 340px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; }
         .svc-results { display: grid; gap: 6px; padding: 8px; }
         .svc-group + .svc-group { border-top: 1px solid #e2e8f0; }
-        .svc-group-btn { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; background: transparent; border: none; color: #0f172a; font: inherit; font-size: 1rem; font-weight: 600; padding: 12px; cursor: pointer; text-align: left; }
+        .svc-group-btn { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; background: transparent; border: none; color: #b45309; font: inherit; font-size: 1.0625rem; font-weight: 800; padding: 12px; cursor: pointer; text-align: left; }
         .svc-group-btn:focus-visible { outline: 2px solid #facc15; outline-offset: -2px; border-radius: 8px; }
         .svc-group-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0 10px 12px; }
         .svc-option { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid #e2e8f0; background: #ffffff; cursor: pointer; font-size: 0.9375rem; }

@@ -36,7 +36,7 @@ export function ServicePicker({ catalog, value, onChange, idPrefix, withPrimary 
       <label key={s.name} className={`svc-option${checked ? " checked" : ""}`}>
         <input type="checkbox" checked={checked} onChange={() => toggle(s.name)} />
         <span style={{ minWidth: 0 }}>
-          <span style={{ display: "block", color: "#0f172a" }}>{s.name}</span>
+          <span style={{ display: "block", color: "#0070f3", fontWeight: 600 }}>{s.name}</span>
           {(showGroup || hint || s.description) && (
             <span style={{ display: "block", fontSize: "0.8125rem", color: "#64748b", lineHeight: 1.4 }}>
               {[showGroup && s.group?.name, hint, s.description].filter(Boolean).join(" · ")}
