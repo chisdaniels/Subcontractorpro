@@ -272,6 +272,9 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
 
   // ---------- Render ----------
   const realGroups = catalog.groups.filter(g => g.slug !== "__other");
+  function toggleOpenGroup(slug) {
+    setOpenGroups(prev => { const n = new Set(prev); if (n.has(slug)) n.delete(slug); else n.add(slug); return n; });
+  }
 
   const ruleLine = r => [
     r.jurisdiction_level === "federal" ? "Federal" : [r.city, r.county && `${r.county} County`, r.state_code].filter(Boolean).join(", "),
@@ -504,7 +507,11 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
             const active = g.services.filter(s => s.is_active).length;
             return (
               <div key={g.slug} className="card" style={{ padding: 0, opacity: g.is_active ? 1 : 0.7 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: 12, flexWrap: "wrap" }}>
+                <div
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: 12, flexWrap: "wrap", cursor: renamingGroup?.slug === g.slug ? "default" : "pointer" }}
+                  // The whole header row opens the category; its own buttons and the rename form keep their clicks.
+                  onClick={e => { if (renamingGroup?.slug !== g.slug && !e.target.closest("button, input, form, a")) toggleOpenGroup(g.slug); }}
+                >
                   {renamingGroup?.slug === g.slug ? (
                     <form onSubmit={saveGroupName} style={{ display: "flex", gap: 6, flex: 1, minWidth: 220 }}>
                       <label htmlFor="grp-rename" className="sr-only">Group name</label>
@@ -518,7 +525,7 @@ export default function AdminServices({ catalog, rules, contractors, jobs, admin
                       className="svc-group-btn"
                       style={{ flex: 1, minWidth: 200, background: "transparent", border: "none", padding: 0 }}
                       aria-expanded={open}
-                      onClick={() => setOpenGroups(prev => { const n = new Set(prev); if (n.has(g.slug)) n.delete(g.slug); else n.add(g.slug); return n; })}
+                      onClick={() => toggleOpenGroup(g.slug)}
                     >
                       <span>
                         {g.name}
