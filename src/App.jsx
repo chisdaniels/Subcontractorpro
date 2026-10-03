@@ -2730,11 +2730,12 @@ function avatarInitials(name) {
                     return (
                       <>
                         <button
+                          className="btn btn-outline btn-sm"
                           onClick={() => setActiveChat(null)}
                           aria-label="Back to conversations"
-                          style={{ background: "transparent", border: "none", color: "#0f172a", cursor: "pointer", fontSize: "1.375rem", padding: 4, lineHeight: 1 }}
+                          style={{ flexShrink: 0 }}
                         >
-                          ←
+                          ← Back
                         </button>
                         <Avatar initials={label.avatar} size={36} />
                         <div style={{ flex: 1, minWidth: 0 }}>
